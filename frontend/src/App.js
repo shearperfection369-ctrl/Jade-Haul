@@ -1,55 +1,82 @@
-import { useEffect } from "react";
+import React from "react";
 import "@/App.css";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
-import axios from "axios";
-import { HOME } from "@/constants/testIds";
+import "leaflet/dist/leaflet.css";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { AuthProvider, useAuth } from "@/context/AuthContext";
+import { ThemeProvider } from "@/context/ThemeContext";
+import { Toaster } from "@/components/ui/sonner";
 
-const BACKEND_URL = process.env.REACT_APP_BACKEND_URL;
-const API = `${BACKEND_URL}/api`;
+import Login from "@/pages/Login";
+import AppShell from "@/components/layout/AppShell";
+import DriverDashboard from "@/pages/DriverDashboard";
+import GpsPage from "@/pages/GpsPage";
+import EldLogsPage from "@/pages/EldLogsPage";
+import DetentionPage from "@/pages/DetentionPage";
+import BillScannerPage from "@/pages/BillScannerPage";
+import WeighStationsPage from "@/pages/WeighStationsPage";
+import JadeChatPage from "@/pages/JadeChatPage";
+import SafetyPage from "@/pages/SafetyPage";
+import LoadBoardPage from "@/pages/LoadBoardPage";
+import MessagesPage from "@/pages/MessagesPage";
+import SettingsPage from "@/pages/SettingsPage";
+import BrokerDashboard from "@/pages/BrokerDashboard";
+import BrokerQuotePage from "@/pages/BrokerQuotePage";
+import BrokerCarriersPage from "@/pages/BrokerCarriersPage";
+import BrokerExceptionsPage from "@/pages/BrokerExceptionsPage";
 
-const Home = () => {
-  const helloWorldApi = async () => {
-    try {
-      const response = await axios.get(`${API}/`);
-      console.log(response.data.message);
-    } catch (e) {
-      console.error(e, `errored out requesting / api`);
-    }
-  };
+const Protected = ({ children, role }) => {
+  const { user, loading } = useAuth();
+  if (loading) return <div className="h-screen w-full flex items-center justify-center text-muted-foreground">Booting JadeOS…</div>;
+  if (!user) return <Navigate to="/login" replace />;
+  if (role && user.role !== role) return <Navigate to={user.role === "broker" ? "/broker" : "/driver"} replace />;
+  return children;
+};
 
-  useEffect(() => {
-    helloWorldApi();
-  }, []);
-
-  return (
-    <div>
-      <header className="App-header">
-        <a
-          data-testid={HOME.emergentLink}
-          className="App-link"
-          href="https://emergent.sh"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <img src="https://avatars.githubusercontent.com/in/1201222?s=120&u=2686cf91179bbafbc7a71bfbc43004cf9ae1acea&v=4" />
-        </a>
-        <p className="mt-5">Building something incredible ~!</p>
-      </header>
-    </div>
-  );
+const RoleRedirect = () => {
+  const { user, loading } = useAuth();
+  if (loading) return null;
+  if (!user) return <Navigate to="/login" replace />;
+  return <Navigate to={user.role === "broker" ? "/broker" : "/driver"} replace />;
 };
 
 function App() {
   return (
-    <div className="App">
-      <BrowserRouter>
-        <Routes>
-          <Route path="/" element={<Home />}>
-            <Route index element={<Home />} />
-          </Route>
-        </Routes>
-      </BrowserRouter>
-    </div>
+    <ThemeProvider>
+      <AuthProvider>
+        <BrowserRouter>
+          <div className="App jade-grain">
+            <Routes>
+              <Route path="/login" element={<Login />} />
+
+              <Route element={<Protected><AppShell /></Protected>}>
+                {/* Driver */}
+                <Route path="/driver" element={<Protected role="driver"><DriverDashboard /></Protected>} />
+                <Route path="/driver/gps" element={<Protected role="driver"><GpsPage /></Protected>} />
+                <Route path="/driver/logs" element={<Protected role="driver"><EldLogsPage /></Protected>} />
+                <Route path="/driver/detention" element={<Protected role="driver"><DetentionPage /></Protected>} />
+                <Route path="/driver/scan" element={<Protected role="driver"><BillScannerPage /></Protected>} />
+                <Route path="/driver/weigh" element={<Protected role="driver"><WeighStationsPage /></Protected>} />
+                <Route path="/driver/jade" element={<Protected role="driver"><JadeChatPage /></Protected>} />
+                <Route path="/driver/safety" element={<Protected role="driver"><SafetyPage /></Protected>} />
+                <Route path="/driver/loads" element={<Protected role="driver"><LoadBoardPage /></Protected>} />
+                <Route path="/driver/messages" element={<Protected role="driver"><MessagesPage /></Protected>} />
+                <Route path="/settings" element={<SettingsPage />} />
+
+                {/* Broker */}
+                <Route path="/broker" element={<Protected role="broker"><BrokerDashboard /></Protected>} />
+                <Route path="/broker/quote" element={<Protected role="broker"><BrokerQuotePage /></Protected>} />
+                <Route path="/broker/carriers" element={<Protected role="broker"><BrokerCarriersPage /></Protected>} />
+                <Route path="/broker/exceptions" element={<Protected role="broker"><BrokerExceptionsPage /></Protected>} />
+                <Route path="/broker/jade" element={<JadeChatPage />} />
+              </Route>
+
+              <Route path="*" element={<RoleRedirect />} />
+            </Routes>
+            <Toaster />
+          </div>
+        </BrowserRouter>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

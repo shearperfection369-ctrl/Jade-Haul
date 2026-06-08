@@ -2,114 +2,287 @@
 @tailwind components;
 @tailwind utilities;
 
-body {
-    margin: 0;
-    font-family:
-        -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen",
-        "Ubuntu", "Cantarell", "Fira Sans", "Droid Sans", "Helvetica Neue",
-        sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-}
-
-code {
-    font-family:
-        source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
-}
+@import "@fontsource/unbounded/600.css";
+@import "@fontsource/unbounded/800.css";
+@import "@fontsource/outfit/300.css";
+@import "@fontsource/outfit/400.css";
+@import "@fontsource/outfit/500.css";
+@import "@fontsource/jetbrains-mono/400.css";
+@import "@fontsource/jetbrains-mono/700.css";
 
 @layer base {
-    :root {
-        --background: 0 0% 100%;
-        --foreground: 0 0% 3.9%;
-        --card: 0 0% 100%;
-        --card-foreground: 0 0% 3.9%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 0 0% 3.9%;
-        --primary: 0 0% 9%;
-        --primary-foreground: 0 0% 98%;
-        --secondary: 0 0% 96.1%;
-        --secondary-foreground: 0 0% 9%;
-        --muted: 0 0% 96.1%;
-        --muted-foreground: 0 0% 45.1%;
-        --accent: 0 0% 96.1%;
-        --accent-foreground: 0 0% 9%;
-        --destructive: 0 84.2% 60.2%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 89.8%;
-        --input: 0 0% 89.8%;
-        --ring: 0 0% 3.9%;
-        --chart-1: 12 76% 61%;
-        --chart-2: 173 58% 39%;
-        --chart-3: 197 37% 24%;
-        --chart-4: 43 74% 66%;
-        --chart-5: 27 87% 67%;
-        --radius: 0.5rem;
+    :root,
+    [data-theme="jade"] {
+        --background: 240 10% 4%;
+        --foreground: 0 0% 100%;
+        --card: 150 10% 7%;
+        --card-foreground: 0 0% 100%;
+        --popover: 150 10% 7%;
+        --popover-foreground: 0 0% 100%;
+        --primary: 157 100% 49%;
+        --primary-foreground: 0 0% 0%;
+        --secondary: 150 10% 12%;
+        --secondary-foreground: 0 0% 100%;
+        --muted: 150 10% 15%;
+        --muted-foreground: 150 5% 60%;
+        --accent: 157 100% 49%;
+        --accent-foreground: 0 0% 0%;
+        --destructive: 0 84% 60%;
+        --destructive-foreground: 0 0% 100%;
+        --border: 150 15% 15%;
+        --input: 150 15% 15%;
+        --ring: 157 100% 49%;
+        --radius: 1rem;
+        --glow: 0 0 24px hsl(157 100% 49% / 0.45);
+        --glow-soft: 0 0 12px hsl(157 100% 49% / 0.25);
+        --grain-opacity: 0.06;
     }
-    .dark {
-        --background: 0 0% 3.9%;
-        --foreground: 0 0% 98%;
-        --card: 0 0% 3.9%;
-        --card-foreground: 0 0% 98%;
-        --popover: 0 0% 3.9%;
-        --popover-foreground: 0 0% 98%;
-        --primary: 0 0% 98%;
-        --primary-foreground: 0 0% 9%;
-        --secondary: 0 0% 14.9%;
-        --secondary-foreground: 0 0% 98%;
-        --muted: 0 0% 14.9%;
-        --muted-foreground: 0 0% 63.9%;
-        --accent: 0 0% 14.9%;
-        --accent-foreground: 0 0% 98%;
-        --destructive: 0 62.8% 30.6%;
-        --destructive-foreground: 0 0% 98%;
-        --border: 0 0% 14.9%;
-        --input: 0 0% 14.9%;
-        --ring: 0 0% 83.1%;
-        --chart-1: 220 70% 50%;
-        --chart-2: 160 60% 45%;
-        --chart-3: 30 80% 55%;
-        --chart-4: 280 65% 60%;
-        --chart-5: 340 75% 55%;
-    }
-}
 
-@layer base {
+    [data-theme="midnight"] {
+        --background: 220 30% 4%;
+        --foreground: 0 0% 100%;
+        --card: 220 25% 8%;
+        --primary: 200 100% 55%;
+        --primary-foreground: 0 0% 0%;
+        --secondary: 220 20% 12%;
+        --muted: 220 20% 15%;
+        --muted-foreground: 220 10% 65%;
+        --accent: 200 100% 55%;
+        --border: 220 20% 18%;
+        --input: 220 20% 18%;
+        --ring: 200 100% 55%;
+        --glow: 0 0 24px hsl(200 100% 55% / 0.45);
+        --glow-soft: 0 0 12px hsl(200 100% 55% / 0.25);
+    }
+
+    [data-theme="sunset"] {
+        --background: 12 25% 5%;
+        --foreground: 30 100% 96%;
+        --card: 12 20% 9%;
+        --primary: 18 100% 58%;
+        --primary-foreground: 0 0% 5%;
+        --secondary: 12 15% 12%;
+        --muted: 12 15% 15%;
+        --muted-foreground: 18 20% 70%;
+        --accent: 18 100% 58%;
+        --border: 18 25% 18%;
+        --input: 18 25% 18%;
+        --ring: 18 100% 58%;
+        --glow: 0 0 24px hsl(18 100% 58% / 0.45);
+        --glow-soft: 0 0 12px hsl(18 100% 58% / 0.25);
+    }
+
+    [data-theme="storm"] {
+        --background: 210 18% 7%;
+        --foreground: 210 30% 96%;
+        --card: 210 15% 11%;
+        --primary: 210 90% 80%;
+        --primary-foreground: 210 50% 10%;
+        --secondary: 210 12% 15%;
+        --muted: 210 12% 18%;
+        --muted-foreground: 210 15% 70%;
+        --accent: 210 90% 80%;
+        --border: 210 15% 22%;
+        --input: 210 15% 22%;
+        --ring: 210 90% 80%;
+        --glow: 0 0 24px hsl(210 90% 80% / 0.45);
+        --glow-soft: 0 0 12px hsl(210 90% 80% / 0.25);
+    }
+
+    [data-theme="aurora"] {
+        --background: 260 35% 5%;
+        --foreground: 170 30% 96%;
+        --card: 260 25% 9%;
+        --primary: 170 100% 55%;
+        --primary-foreground: 260 50% 8%;
+        --secondary: 260 20% 13%;
+        --muted: 260 20% 16%;
+        --muted-foreground: 270 15% 72%;
+        --accent: 170 100% 55%;
+        --border: 260 20% 20%;
+        --input: 260 20% 20%;
+        --ring: 170 100% 55%;
+        --glow: 0 0 24px hsl(170 100% 55% / 0.45);
+        --glow-soft: 0 0 12px hsl(170 100% 55% / 0.25);
+    }
+
     * {
         @apply border-border;
     }
+
+    html,
+    body,
+    #root {
+        @apply h-full;
+    }
+
     body {
-        @apply bg-background text-foreground;
+        @apply bg-background text-foreground antialiased;
+        font-family: "Outfit", system-ui, sans-serif;
+        background-image:
+            radial-gradient(at 8% 0%, hsl(var(--primary) / 0.10) 0px, transparent 50%),
+            radial-gradient(at 95% 100%, hsl(var(--primary) / 0.08) 0px, transparent 55%);
+        background-attachment: fixed;
+    }
+
+    h1,
+    h2,
+    h3,
+    h4 {
+        font-family: "Unbounded", system-ui, sans-serif;
+        letter-spacing: -0.01em;
+    }
+
+    code,
+    .mono,
+    pre {
+        font-family: "JetBrains Mono", ui-monospace, monospace;
     }
 }
 
-@layer base {
-    [data-debug-wrapper="true"] {
-        display: contents !important;
-    }
+/* ----- Visual primitives ----- */
+.jade-glass {
+    background: hsl(var(--card) / 0.55);
+    backdrop-filter: blur(22px) saturate(140%);
+    -webkit-backdrop-filter: blur(22px) saturate(140%);
+    border: 1px solid hsl(var(--border) / 0.8);
+    border-radius: var(--radius);
+}
 
-    [data-debug-wrapper="true"] > * {
-        margin-left: inherit;
-        margin-right: inherit;
-        margin-top: inherit;
-        margin-bottom: inherit;
-        padding-left: inherit;
-        padding-right: inherit;
-        padding-top: inherit;
-        padding-bottom: inherit;
-        column-gap: inherit;
-        row-gap: inherit;
-        gap: inherit;
-        border-left-width: inherit;
-        border-right-width: inherit;
-        border-top-width: inherit;
-        border-bottom-width: inherit;
-        border-left-style: inherit;
-        border-right-style: inherit;
-        border-top-style: inherit;
-        border-bottom-style: inherit;
-        border-left-color: inherit;
-        border-right-color: inherit;
-        border-top-color: inherit;
-        border-bottom-color: inherit;
+.jade-panel {
+    background: linear-gradient(
+        180deg,
+        hsl(var(--card) / 0.78) 0%,
+        hsl(var(--background) / 0.65) 100%
+    );
+    border: 1px solid hsl(var(--border));
+    border-radius: var(--radius);
+    backdrop-filter: blur(18px);
+}
+
+.jade-ring-glow {
+    box-shadow: var(--glow);
+}
+
+.jade-tracing-border {
+    position: relative;
+    isolation: isolate;
+}
+
+.jade-tracing-border::before {
+    content: "";
+    position: absolute;
+    inset: -1px;
+    border-radius: inherit;
+    padding: 1px;
+    background: linear-gradient(
+        130deg,
+        hsl(var(--primary) / 0.6),
+        transparent 40%,
+        hsl(var(--primary) / 0.4) 75%,
+        transparent
+    );
+    -webkit-mask:
+        linear-gradient(#fff 0 0) content-box,
+        linear-gradient(#fff 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    pointer-events: none;
+}
+
+.jade-grain::after {
+    content: "";
+    position: fixed;
+    inset: 0;
+    pointer-events: none;
+    z-index: 50;
+    opacity: var(--grain-opacity, 0.06);
+    mix-blend-mode: overlay;
+    background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='160' height='160'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' stitchTiles='stitch'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.5 0'/></filter><rect width='100%25' height='100%25' filter='url(%23n)'/></svg>");
+}
+
+/* Pulsing / breathing for JADE orb */
+@keyframes orb-pulse {
+    0%,
+    100% {
+        transform: scale(1);
+        box-shadow: 0 0 24px hsl(var(--primary) / 0.45);
     }
+    50% {
+        transform: scale(1.05);
+        box-shadow: 0 0 60px hsl(var(--primary) / 0.7);
+    }
+}
+
+.orb-pulse {
+    animation: orb-pulse 3s ease-in-out infinite;
+}
+
+@keyframes orb-fast {
+    0%,
+    100% {
+        transform: scale(1);
+    }
+    50% {
+        transform: scale(1.12);
+    }
+}
+
+.orb-listening {
+    animation: orb-fast 0.6s ease-in-out infinite;
+}
+
+/* Holo orb scan ring */
+@keyframes scan-rotate {
+    from {
+        transform: rotate(0deg);
+    }
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.scan-ring {
+    animation: scan-rotate 4s linear infinite;
+}
+
+.scan-ring-rev {
+    animation: scan-rotate 7s linear infinite reverse;
+}
+
+/* Leaflet dark mode tweaks */
+.leaflet-container {
+    background: hsl(var(--background));
+    font-family: "Outfit", sans-serif;
+}
+
+.leaflet-control-attribution {
+    background: hsl(var(--background) / 0.7) !important;
+    color: hsl(var(--muted-foreground)) !important;
+    font-size: 9px !important;
+}
+
+.leaflet-control-zoom a {
+    background: hsl(var(--card)) !important;
+    color: hsl(var(--primary)) !important;
+    border: 1px solid hsl(var(--border)) !important;
+}
+
+/* Scrollbar */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+::-webkit-scrollbar-thumb {
+    background: hsl(var(--muted));
+    border-radius: 8px;
+}
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+/* Selection */
+::selection {
+    background: hsl(var(--primary) / 0.4);
+    color: hsl(var(--foreground));
 }
