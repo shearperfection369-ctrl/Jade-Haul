@@ -8,6 +8,7 @@ import {
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
+import JadeMark from "@/components/JadeMark";
 
 const driverNav = [
   { to: "/driver", icon: LayoutDashboard, label: "Command", testid: "nav-driver-dashboard" },
@@ -39,12 +40,8 @@ export default function AppShell() {
     <div className="flex h-screen w-screen overflow-hidden text-foreground">
       {/* Sidebar */}
       <aside className="w-64 shrink-0 jade-glass m-3 mr-0 flex flex-col" data-testid="app-sidebar">
-        <div className="px-5 py-5 flex items-center gap-3 border-b border-border/60">
-          <div className="relative w-9 h-9 rounded-full bg-primary jade-ring-glow" />
-          <div className="leading-tight">
-            <div className="font-[Unbounded] font-extrabold tracking-tight text-lg">JADE<span className="text-primary">OS</span></div>
-            <div className="mono text-[10px] text-muted-foreground uppercase">{user?.role === "broker" ? "Broker · Desk" : "Driver · Cockpit"}</div>
-          </div>
+        <div className="px-5 py-5 border-b border-border/60">
+          <JadeMark size="sm" subtitle={user?.role === "broker" ? "Broker Desk · MPLS" : "Driver Cockpit · MPLS"} />
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">

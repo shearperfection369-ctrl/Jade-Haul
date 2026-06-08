@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { useNavigate, Navigate } from "react-router-dom";
 import HoloOrb from "@/components/HoloOrb";
+import JadeMark from "@/components/JadeMark";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -66,15 +67,14 @@ export default function Login() {
             className="w-full h-full object-cover opacity-20"
           />
           <div className="absolute inset-0 bg-gradient-to-br from-background via-background/95 to-primary/10" />
+          {/* faint grid */}
+          <div className="absolute inset-0 opacity-[0.07]" style={{
+            backgroundImage: "linear-gradient(hsl(var(--primary)) 1px, transparent 1px), linear-gradient(90deg, hsl(var(--primary)) 1px, transparent 1px)",
+            backgroundSize: "48px 48px",
+          }} />
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-primary jade-ring-glow" />
-          <div>
-            <div className="font-[Unbounded] font-extrabold text-2xl tracking-tight">JADE<span className="text-primary">OS</span></div>
-            <div className="mono text-[10px] text-muted-foreground uppercase tracking-[0.3em]">Trucker · Broker · AI Co-pilot</div>
-          </div>
-        </div>
+        <JadeMark size="lg" subtitle="A JadeOS Product · MPLS Node" />
 
         <div className="my-10 flex flex-col items-center">
           <HoloOrb scanning={scanning} onComplete={onBiometricComplete} />
@@ -95,7 +95,7 @@ export default function Login() {
         <div className="w-full max-w-md space-y-7">
           <div>
             <div className="mono text-[10px] uppercase text-primary tracking-[0.3em] mb-2">Welcome to the Cockpit</div>
-            <h1 className="text-4xl font-extrabold leading-tight">Sign in to <span className="text-primary">JadeOS</span></h1>
+            <h1 className="text-4xl font-extrabold leading-tight">Sign in to <span className="text-primary">Jade Haul</span></h1>
             <p className="text-muted-foreground mt-2">Pick your persona, then scan-in with the holo-orb or use credentials.</p>
           </div>
 
@@ -135,7 +135,9 @@ export default function Login() {
               <Label htmlFor="pass" className="mono text-[10px] tracking-widest uppercase text-muted-foreground">Password</Label>
               <Input id="pass" type="password" data-testid="login-password" value={password} onChange={(e) => setPassword(e.target.value)} />
             </div>
-            <Button type="submit" className="w-full h-11 mt-2" data-testid="login-submit">Sign in</Button>
+            <Button type="submit" className="w-full h-11 mt-2 btn-lime hover:btn-lime" data-testid="login-submit">
+              Launch Cockpit →
+            </Button>
           </form>
 
           <div className="mono text-[10px] text-muted-foreground leading-relaxed">

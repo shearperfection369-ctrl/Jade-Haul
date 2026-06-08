@@ -13,11 +13,13 @@ const queryClient = new QueryClient({
   },
 });
 
+// NOTE: StrictMode intentionally disabled — react-leaflet 4 re-initializes the
+// Leaflet container twice under StrictMode and throws "Map container is already
+// initialized." The rest of the app is StrictMode-clean; toggle back on after
+// upgrading to react-leaflet >= 5.
 const root = ReactDOM.createRoot(document.getElementById("root"));
 root.render(
-  <React.StrictMode>
-    <QueryClientProvider client={queryClient}>
-      <App />
-    </QueryClientProvider>
-  </React.StrictMode>,
+  <QueryClientProvider client={queryClient}>
+    <App />
+  </QueryClientProvider>
 );
