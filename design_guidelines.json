@@ -1,0 +1,160 @@
+{
+  "project_identity": "JadeOS - High-End Trucker Assistance & Broker OS",
+  "theme_and_archetype": {
+    "primary_archetype": "Archetype 7 (Electric & Neon) heavily infused with Archetype 5 (Luxury Dark)",
+    "rationale": "Needs a 'NASA-meets-Tesla' premium AI HUD feel. Avoids cheap cyberpunk by utilizing deep Obsidian blacks, dense glassmorphism, and tactical neon jade accents strictly for functional data points and AI presence."
+  },
+  "design_tokens": {
+    "css_variables_setup": "Provide these as a global CSS block and extend tailwind.config.js to use them.",
+    "themes": {
+      "jade_default": {
+        "--background": "240 10% 4%",
+        "--foreground": "0 0% 100%",
+        "--card": "150 10% 7%",
+        "--card-foreground": "0 0% 100%",
+        "--popover": "150 10% 7%",
+        "--popover-foreground": "0 0% 100%",
+        "--primary": "157 100% 49%",
+        "--primary-foreground": "0 0% 0%",
+        "--secondary": "150 10% 12%",
+        "--secondary-foreground": "0 0% 100%",
+        "--muted": "150 10% 15%",
+        "--muted-foreground": "150 5% 60%",
+        "--accent": "157 100% 49%",
+        "--accent-foreground": "0 0% 0%",
+        "--destructive": "0 84% 60%",
+        "--destructive-foreground": "0 0% 100%",
+        "--border": "150 15% 15%",
+        "--input": "150 15% 15%",
+        "--ring": "157 100% 49%",
+        "--radius": "1rem",
+        "--glow-jade": "0px 0px 20px rgba(0, 250, 154, 0.4)"
+      },
+      "midnight": {
+        "--background": "220 30% 4%",
+        "--primary": "200 100% 50%",
+        "--ring": "200 100% 50%",
+        "--border": "220 20% 15%",
+        "--glow-jade": "0px 0px 20px rgba(0, 191, 255, 0.4)"
+      },
+      "sunset_highway": {
+        "--background": "0 0% 6%",
+        "--primary": "15 100% 55%",
+        "--ring": "15 100% 55%",
+        "--border": "15 20% 15%",
+        "--glow-jade": "0px 0px 20px rgba(255, 69, 0, 0.4)"
+      },
+      "storm": {
+        "--background": "210 10% 8%",
+        "--primary": "210 100% 85%",
+        "--ring": "210 100% 85%",
+        "--border": "210 15% 20%",
+        "--glow-jade": "0px 0px 20px rgba(200, 220, 255, 0.4)"
+      },
+      "aurora": {
+        "--background": "260 40% 4%",
+        "--primary": "170 100% 50%",
+        "--ring": "170 100% 50%",
+        "--border": "260 20% 15%",
+        "--glow-jade": "0px 0px 20px rgba(0, 255, 209, 0.4)"
+      }
+    }
+  },
+  "typography": {
+    "headings": {
+      "family": "'Unbounded', sans-serif",
+      "weights": "600, 800",
+      "usage": "H1/H2, Main KPIs, Driver Status. Gives a wide, technical, authoritative AI OS feel."
+    },
+    "body": {
+      "family": "'Outfit', sans-serif",
+      "weights": "300, 400, 500",
+      "usage": "General UI text, paragraphs, labels. Clean, modern, highly legible."
+    },
+    "data_and_mono": {
+      "family": "'JetBrains Mono', monospace",
+      "weights": "400, 700",
+      "usage": "ELD Logs, timestamps, GPS coordinates, license plates, detention timers."
+    }
+  },
+  "spacing_and_layout": {
+    "grid_system": "Use strict CSS Grids. 'Bento Box' layout for Driver Dashboard (asymmetrical, dense, distinct widget sizes). Split-screen mode: grid-cols-1 lg:grid-cols-2 with h-screen configuration.",
+    "containers": "Heavy use of Glassmorphism (bg-black/40 backdrop-blur-2xl border border-white/5). Inner padding must be generous (p-6 or p-8) for broker side, but MASSIVE hit areas for driver side (h-16+ buttons).",
+    "corners": "Rounded-2xl for main panels to maintain the 'premium automotive HUD' look."
+  },
+  "components": {
+    "holo_orb_login": {
+      "description": "Apple-Watch-like biometric scanner. Animated concentric SVG rings around a webcam preview.",
+      "styles": "Use standard HTML5 <video> with object-cover inside a perfect circle (rounded-full). Overlay with spinning SVG borders, utilizing stroke-dasharray and Framer Motion's rotate animation. Progress ring fills up based on 'scan' completion."
+    },
+    "jade_voice_assistant": {
+      "description": "Pulsing AI core.",
+      "styles": "A large central div with bg-primary shadow-[var(--glow-jade)]. Idle state: slow scale(1) to scale(1.05) breathing. Listening/Speaking state: generate dynamic audio waveform bars or concentric ripple rings using Framer Motion."
+    },
+    "gps_map_split_screen": {
+      "description": "3D HUD Map view.",
+      "styles": "Left half of the screen. Implement via react-leaflet using a Dark Matter / Midnight tile layer (e.g., CartoDB Dark Matter). Add a glowing primary-colored polyline for the route. Overlay floating glassmorphism badges for 'Weigh Station Bypass' (Green/Red)."
+    },
+    "eld_log_book": {
+      "description": "Graphical 24h status grid.",
+      "styles": "Use Recharts or a custom SVG grid. X-axis: 24 hours. Y-axis: Off-Duty, Sleeper, Driving, On-Duty. Line must be neon primary color with a drop-shadow. JetBrains Mono for time labels."
+    },
+    "detention_timer": {
+      "description": "Start/stop log with timestamps.",
+      "styles": "Massive monolithic typography for the timer (text-6xl+ JetBrains Mono). Glowing border indicating 'Active' state."
+    },
+    "bill_scanner": {
+      "description": "Camera capture -> GPT-4o OCR.",
+      "styles": "Camera viewfinder interface. Add corner brackets [ ] mimicking a HUD targeting system. Scanning animation: a primary-colored laser line moving up and down."
+    },
+    "broker_command_center": {
+      "description": "Dense data dashboard.",
+      "styles": "Use Shadcn Data Tables with dark theme. Tight rows, clear risk scoring badges (Red/Amber/Green), and line charts (Recharts) for margin optimization."
+    }
+  },
+  "visual_enhancers": {
+    "textures": "Apply a global SVG noise/grain overlay (opacity-20, mix-blend-overlay) over the background to eliminate 'digital flatness' and enforce the tactical OS look.",
+    "borders": "Implement 'Tracing Beam' borders (1px gradients) on critical active elements like the current active load card."
+  },
+  "image_urls": {
+    "background_textures": [
+      {
+        "url": "https://images.pexels.com/photos/6485524/pexels-photo-6485524.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Dark abstract shimmering texture for deep backgrounds"
+      },
+      {
+        "url": "https://images.pexels.com/photos/7641148/pexels-photo-7641148.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Subdued fabric/mesh texture"
+      }
+    ],
+    "hero_and_gps_context": [
+      {
+        "url": "https://images.pexels.com/photos/11053643/pexels-photo-11053643.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Cargo truck on dark twilight road"
+      },
+      {
+        "url": "https://images.pexels.com/photos/24343234/pexels-photo-24343234.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "description": "Dark highway at night with car lights"
+      }
+    ],
+    "avatars": [
+      {
+        "url": "https://images.unsplash.com/photo-1626565244872-206f4c1f9e57?crop=entropy&cs=srgb&fm=jpg&ixid=M3w4NjA2MDV8MHwxfHNlYXJjaHwyfHxwcm9mZXNzaW9uYWwlMjBkcml2ZXIlMjBwb3J0cmFpdHxlbnwwfHx8fDE3ODA5NTk1NzV8MA&ixlib=rb-4.1.0&q=85",
+        "description": "Driver profile picture"
+      }
+    ]
+  },
+  "testing_strategy": {
+    "attributes": "Every button, input, toggle, tab, and major view MUST include a 'data-testid' attribute (e.g., 'data-testid=\"login-orb-scan-btn\"')."
+  },
+  "instructions_to_main_agent": [
+    "Install required fonts: @fontsource/unbounded, @fontsource/outfit, @fontsource/jetbrains-mono.",
+    "Install libraries: framer-motion, lucide-react, react-leaflet, leaflet, recharts.",
+    "Do NOT use pure #000000 for backgrounds. Use Obsidian/Tinted greys (e.g. #050907).",
+    "Do NOT build generic white-card SaaS layouts. Everything is dark-mode first with heavy glassmorphism.",
+    "The <html> tag should use data-theme='...' to handle the 5 mood themes. Setup Tailwind to read CSS variables for colors.",
+    "Use Phosphor icons or Lucide icons, keeping stroke widths consistent (1.5px to 2px for legibility).",
+    "For the ELD layout and GPS split screen, utilize h-screen with flex/grid so the driver doesn't have to scroll.",
+    "Build the Holo Orb with actual HTML5 video element capturing via navigator.mediaDevices.getUserMedia (mocked stream if unavailable) masked inside a circle."
+  ]
+}
