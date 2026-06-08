@@ -648,6 +648,297 @@ async def bill_scan(req: BillScanRequest, user: dict = Depends(current_user)):
 
 
 # ---------------------------------------------------------------------------
+# Integrations / widget framework
+# ---------------------------------------------------------------------------
+INTEGRATION_CATALOG = [
+    {"slug": "samsara", "name": "Samsara", "category": "Telematics", "icon": "Truck",
+     "default_url": "https://www.samsara.com/", "description": "Vehicle telematics, dashcam, GPS.",
+     "color": "#0F62FE", "mode": "iframe"},
+    {"slug": "motive", "name": "Motive", "category": "ELD / Fleet", "icon": "Activity",
+     "default_url": "https://gomotive.com/", "description": "ELD compliance and driver safety.",
+     "color": "#FF6A2A", "mode": "iframe"},
+    {"slug": "geotab", "name": "Geotab", "category": "Telematics", "icon": "Gauge",
+     "default_url": "https://my.geotab.com/", "description": "Fleet telematics and fuel analytics.",
+     "color": "#00C896", "mode": "iframe"},
+    {"slug": "lytx", "name": "Lytx", "category": "Safety / Video", "icon": "Video",
+     "default_url": "https://www.lytx.com/", "description": "AI-powered dashcam coaching.",
+     "color": "#E22D2D", "mode": "iframe"},
+    {"slug": "mcleod", "name": "McLeod Software", "category": "TMS", "icon": "Briefcase",
+     "default_url": "https://www.mcleodsoftware.com/", "description": "Transportation management system.",
+     "color": "#1F2E5A", "mode": "iframe"},
+    {"slug": "loadsmart", "name": "Loadsmart", "category": "Load Board", "icon": "Boxes",
+     "default_url": "https://loadsmart.com/", "description": "Digital freight matching & TMS.",
+     "color": "#FFD400", "mode": "iframe"},
+    {"slug": "navisphere", "name": "Navisphere (CH Robinson)", "category": "Brokerage", "icon": "Globe",
+     "default_url": "https://www.chrobinson.com/en-us/", "description": "Global logistics platform.",
+     "color": "#0033A0", "mode": "iframe"},
+    {"slug": "dat", "name": "DAT One", "category": "Load Board", "icon": "List",
+     "default_url": "https://www.dat.com/", "description": "Spot market load board.",
+     "color": "#0078D7", "mode": "iframe"},
+    {"slug": "drivewyze", "name": "Drivewyze", "category": "Bypass", "icon": "Shield",
+     "default_url": "https://drivewyze.com/", "description": "Weigh-station bypass + safety alerts.",
+     "color": "#21A038", "mode": "iframe"},
+    {"slug": "quickbooks", "name": "QuickBooks", "category": "Accounting", "icon": "Calculator",
+     "default_url": "https://app.qbo.intuit.com/", "description": "Settlements + accounting.",
+     "color": "#2CA01C", "mode": "iframe"},
+    {"slug": "stripe", "name": "Stripe", "category": "Payments", "icon": "CreditCard",
+     "default_url": "https://dashboard.stripe.com/", "description": "Payouts + cards.",
+     "color": "#635BFF", "mode": "iframe"},
+    {"slug": "trimble", "name": "Trimble Maps", "category": "Routing", "icon": "Map",
+     "default_url": "https://maps.trimble.com/", "description": "Commercial truck routing.",
+     "color": "#0063BE", "mode": "iframe"},
+    {"slug": "custom", "name": "Custom URL", "category": "Generic", "icon": "Link",
+     "default_url": "", "description": "Embed any URL as a widget panel.",
+     "color": "#00FA9A", "mode": "iframe"},
+]
+
+
+class IntegrationConnectRequest(BaseModel):
+    slug: str
+    embed_url: Optional[str] = None
+    name: Optional[str] = None
+    api_key: Optional[str] = None
+    notes: Optional[str] = ""
+
+
+def _meta_for(slug: str) -> Optional[dict]:
+    for m in INTEGRATION_CATALOG:
+        if m["slug"] == slug:
+            return m
+    return None
+
+
+@api.get("/integrations/catalog")
+async def integrations_catalog(user: dict = Depends(current_user)):
+    return INTEGRATION_CATALOG
+
+
+@api.get("/integrations")
+async def list_integrations(user: dict = Depends(current_user)):
+    cursor = db.integrations.find({"user_id": user["id"]}, {"_id": 0, "api_key": 0}).sort("connected_at", -1)
+    return await cursor.to_list(200)
+
+
+@api.post("/integrations/connect")
+async def connect_integration(req: IntegrationConnectRequest, user: dict = Depends(current_user)):
+    meta = _meta_for(req.slug)
+    if not meta and req.slug != "custom":
+        raise HTTPException(status_code=404, detail="Unknown integration slug")
+    embed_url = (req.embed_url or (meta and meta["default_url"]) or "").strip()
+    if not embed_url:
+        raise HTTPException(status_code=400, detail="embed_url required")
+    if not (embed_url.startswith("http://") or embed_url.startswith("https://")):
+        raise HTTPException(status_code=400, detail="embed_url must start with http(s)://")
+    record = {
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "slug": req.slug,
+        "name": req.name or (meta["name"] if meta else "Custom"),
+        "category": meta["category"] if meta else "Custom",
+        "icon": meta["icon"] if meta else "Link",
+        "color": meta["color"] if meta else "#00FA9A",
+        "embed_url": embed_url,
+        "notes": req.notes or "",
+        "status": "CONNECTED",
+        "has_api_key": bool(req.api_key),
+        "connected_at": utcnow_iso(),
+    }
+    # store separately keyed key (out of band; demo only)
+    doc = record.copy()
+    if req.api_key:
+        doc["api_key"] = req.api_key
+    await db.integrations.insert_one(doc)
+    return record
+
+
+@api.delete("/integrations/{integration_id}")
+async def disconnect_integration(integration_id: str, user: dict = Depends(current_user)):
+    res = await db.integrations.delete_one({"id": integration_id, "user_id": user["id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Integration not found")
+    return {"ok": True}
+
+
+@api.get("/integrations/{integration_id}")
+async def get_integration(integration_id: str, user: dict = Depends(current_user)):
+    doc = await db.integrations.find_one({"id": integration_id, "user_id": user["id"]}, {"_id": 0, "api_key": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Not found")
+    return doc
+
+
+# ---------------------------------------------------------------------------
+# Public shipper tracking (no auth)
+# ---------------------------------------------------------------------------
+@api.get("/track/{load_id}")
+async def public_track(load_id: str):
+    """Returns a stable demo shipment payload by load_id for public sharing."""
+    # Deterministic so the same load_id always renders the same data
+    eta_offset = (abs(hash(load_id)) % 24) + 2
+    progress_pct = (abs(hash(load_id)) % 90) + 5
+    return {
+        "load_id": load_id,
+        "shipper": "FreshHarvest Foods",
+        "consignee": "Phoenix DC · Bay 11",
+        "carrier": "Reyes Trucking LLC",
+        "carrier_dot": "DOT-2829841",
+        "status": "IN_TRANSIT" if progress_pct < 95 else "ARRIVING",
+        "origin": "Dallas, TX",
+        "destination": "Phoenix, AZ",
+        "pickup_at": (datetime.now(timezone.utc) - timedelta(hours=12)).isoformat(),
+        "eta": (datetime.now(timezone.utc) + timedelta(hours=eta_offset)).isoformat(),
+        "progress_pct": progress_pct,
+        "current_location": "Tucson, AZ · I-10 W · mile 263",
+        "miles_remaining": 612 - int(progress_pct * 6.12),
+        "temperature_f": 36,
+        "events": [
+            {"t": (datetime.now(timezone.utc) - timedelta(hours=14)).isoformat(),
+             "kind": "DISPATCH", "label": "Load tendered to Reyes Trucking LLC"},
+            {"t": (datetime.now(timezone.utc) - timedelta(hours=12, minutes=30)).isoformat(),
+             "kind": "PICKUP", "label": "Picked up · Dallas DC"},
+            {"t": (datetime.now(timezone.utc) - timedelta(hours=10)).isoformat(),
+             "kind": "EVENT", "label": "Crossed TX/NM state line"},
+            {"t": (datetime.now(timezone.utc) - timedelta(hours=3)).isoformat(),
+             "kind": "REST", "label": "Driver took 30-min federal break"},
+            {"t": (datetime.now(timezone.utc) - timedelta(minutes=42)).isoformat(),
+             "kind": "EVENT", "label": "Passing Tucson, AZ — clear weather"},
+        ],
+    }
+
+
+# ---------------------------------------------------------------------------
+# Settlements (Stripe + QuickBooks mock pipeline)
+# ---------------------------------------------------------------------------
+@api.get("/settlements")
+async def list_settlements(user: dict = Depends(current_user)):
+    role = user["role"]
+    base = datetime.now(timezone.utc)
+    items_driver = [
+        {"id": "S-44218", "load_id": "JL-2026-00917", "broker": "Atlas Freight Co.",
+         "amount_usd": 2685.50, "status": "PENDING", "due_at": (base + timedelta(days=5)).isoformat(),
+         "detention_usd": 50.00, "fuel_advance_usd": 400.00, "method": "ACH"},
+        {"id": "S-44209", "load_id": "JL-2026-00911", "broker": "Crossroads TMS",
+         "amount_usd": 3050.00, "status": "PAID", "paid_at": (base - timedelta(days=2)).isoformat(),
+         "detention_usd": 0.00, "fuel_advance_usd": 0.00, "method": "Stripe"},
+        {"id": "S-44201", "load_id": "JL-2026-00905", "broker": "Sunbelt Logistics",
+         "amount_usd": 1180.00, "status": "PAID", "paid_at": (base - timedelta(days=9)).isoformat(),
+         "detention_usd": 150.00, "fuel_advance_usd": 200.00, "method": "Stripe"},
+        {"id": "S-44197", "load_id": "JL-2026-00899", "broker": "Pacific Bridge",
+         "amount_usd": 3950.00, "status": "PAID", "paid_at": (base - timedelta(days=14)).isoformat(),
+         "detention_usd": 0.00, "fuel_advance_usd": 600.00, "method": "ACH"},
+    ]
+    items_broker = [
+        {"id": "P-91022", "load_id": "JL-2026-00917", "carrier": "Reyes Trucking LLC",
+         "amount_usd": 2685.50, "margin_usd": 521.20, "status": "SCHEDULED",
+         "due_at": (base + timedelta(days=5)).isoformat(), "method": "Stripe Payouts"},
+        {"id": "P-91019", "load_id": "JL-2026-00911", "carrier": "Crossroads Express",
+         "amount_usd": 3050.00, "margin_usd": 588.00, "status": "PAID",
+         "paid_at": (base - timedelta(days=2)).isoformat(), "method": "Stripe Payouts"},
+        {"id": "P-91014", "load_id": "JL-2026-00908", "carrier": "Pacific Bridge Carriers",
+         "amount_usd": 4280.00, "margin_usd": 812.00, "status": "PAID",
+         "paid_at": (base - timedelta(days=4)).isoformat(), "method": "QuickBooks ACH"},
+    ]
+    return {
+        "items": items_driver if role == "driver" else items_broker,
+        "totals": {
+            "outstanding_usd": sum(i["amount_usd"] for i in (items_driver if role == "driver" else items_broker)
+                                   if i["status"] in ("PENDING", "SCHEDULED")),
+            "paid_30d_usd": sum(i["amount_usd"] for i in (items_driver if role == "driver" else items_broker)
+                                if i["status"] == "PAID"),
+        },
+        "connections": {
+            "stripe": True,
+            "quickbooks": False,
+        },
+    }
+
+
+# ---------------------------------------------------------------------------
+# WebSocket — real-time dispatch comms
+# ---------------------------------------------------------------------------
+from fastapi import WebSocket, WebSocketDisconnect  # noqa: E402
+
+
+class _DispatchHub:
+    def __init__(self) -> None:
+        self.connections: list[WebSocket] = []
+        self.history: list[dict] = []
+
+    async def connect(self, ws: WebSocket) -> None:
+        await ws.accept()
+        self.connections.append(ws)
+        # Send last 40 messages on connect
+        for msg in self.history[-40:]:
+            await ws.send_json(msg)
+
+    def disconnect(self, ws: WebSocket) -> None:
+        if ws in self.connections:
+            self.connections.remove(ws)
+
+    async def broadcast(self, msg: dict) -> None:
+        self.history.append(msg)
+        self.history = self.history[-200:]
+        dead = []
+        for ws in self.connections:
+            try:
+                await ws.send_json(msg)
+            except Exception:
+                dead.append(ws)
+        for d in dead:
+            self.disconnect(d)
+
+
+dispatch_hub = _DispatchHub()
+
+
+@app.websocket("/api/ws/dispatch")
+async def dispatch_ws(ws: WebSocket, token: str = ""):
+    """Real-time dispatch chat.  Pass ?token=<jwt> for identification."""
+    user_name = "Anonymous"
+    user_role = "viewer"
+    try:
+        if token:
+            decoded = jwt.decode(token, JWT_SECRET, algorithms=[JWT_ALG])
+            email = decoded.get("sub")
+            u = DEMO_USERS.get(email)
+            if u:
+                user_name = u["name"]
+                user_role = u["role"]
+    except Exception:
+        pass
+
+    await dispatch_hub.connect(ws)
+    await dispatch_hub.broadcast({
+        "id": str(uuid.uuid4()),
+        "ts": utcnow_iso(),
+        "kind": "system",
+        "text": f"{user_name} joined dispatch",
+    })
+    try:
+        while True:
+            data = await ws.receive_json()
+            text = (data.get("text") or "").strip()
+            if not text:
+                continue
+            await dispatch_hub.broadcast({
+                "id": str(uuid.uuid4()),
+                "ts": utcnow_iso(),
+                "kind": "msg",
+                "from": user_name,
+                "role": user_role,
+                "text": text[:800],
+            })
+    except WebSocketDisconnect:
+        dispatch_hub.disconnect(ws)
+        await dispatch_hub.broadcast({
+            "id": str(uuid.uuid4()),
+            "ts": utcnow_iso(),
+            "kind": "system",
+            "text": f"{user_name} left dispatch",
+        })
+
+
+# ---------------------------------------------------------------------------
 # Mount + CORS
 # ---------------------------------------------------------------------------
 app.include_router(api)

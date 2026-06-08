@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import {
   Clock, Fuel, Wrench, ShieldCheck, MapPin, Thermometer,
-  Gauge, ArrowRight, Pause
+  Gauge, ArrowRight, Pause, Plug, ExternalLink
 } from "lucide-react";
 
 const fetcher = (url) => api.get(url).then((r) => r.data);
@@ -35,6 +35,7 @@ export default function DriverDashboard() {
   const { data: stations } = useSWR("/weigh-stations", fetcher);
   const { data: fleet } = useSWR("/fleet/health", fetcher);
   const { data: msgs } = useSWR("/messages", fetcher);
+  const { data: widgets } = useSWR("/integrations", fetcher);
   const [now, setNow] = useState(new Date());
   useEffect(() => {
     const id = setInterval(() => setNow(new Date()), 1000);
@@ -83,7 +84,7 @@ export default function DriverDashboard() {
           <div className="flex items-center justify-between mb-2">
             <div>
               <div className="mono text-[10px] uppercase text-muted-foreground tracking-widest">JADE · AI Co-pilot</div>
-              <div className="font-[Unbounded] text-base">She's listening for you</div>
+              <div className="font-[Unbounded] text-base">She&apos;s listening for you</div>
             </div>
             <Badge variant="secondary" className="border-primary/40 text-primary">Claude Sonnet 4.5</Badge>
           </div>
@@ -92,7 +93,7 @@ export default function DriverDashboard() {
           </div>
           <div className="space-y-2 mt-2">
             <div className="text-sm text-muted-foreground leading-relaxed">
-              "You&apos;re 87 minutes from your federal break window. <span className="text-primary">Love&apos;s #423</span> is the cleanest stop ahead — 64 mi."
+              &quot;You&apos;re 87 minutes from your federal break window. <span className="text-primary">Love&apos;s #423</span> is the cleanest stop ahead — 64 mi.&quot;
             </div>
             <Button className="w-full" onClick={() => nav("/driver/jade")} data-testid="jade-open-conversation">
               Open conversation
@@ -163,6 +164,53 @@ export default function DriverDashboard() {
         {/* Today's Log */}
         <div className="col-span-12">
           <EldLogGrid events={hos?.log_events || []} />
+        </div>
+
+        {/* Connected widgets */}
+        <div className="col-span-12 jade-panel p-5">
+          <div className="flex items-center justify-between mb-3">
+            <div>
+              <div className="mono text-[10px] uppercase text-muted-foreground tracking-widest">Mirrored Apps</div>
+              <div className="font-[Unbounded] text-base flex items-center gap-2">
+                Connected widgets
+                <span className="mono text-[9px] px-1.5 py-0.5 rounded" style={{ background: "var(--lime)", color: "#0a0f0e" }}>NEW</span>
+              </div>
+            </div>
+            <Button variant="ghost" size="sm" onClick={() => nav("/integrations")} data-testid="open-integrations">
+              <Plug className="w-4 h-4 mr-1" /> Manage <ArrowRight className="w-4 h-4 ml-1" />
+            </Button>
+          </div>
+          {(!widgets || widgets.length === 0) ? (
+            <div className="text-sm text-muted-foreground">
+              Mirror any company app — Samsara, Motive, Geotab, McLeod, QuickBooks, Stripe, Drivewyze and more — directly inside Jade Haul.
+              <Button variant="link" className="text-primary px-1" onClick={() => nav("/integrations")} data-testid="connect-first-widget">
+                Connect your first widget →
+              </Button>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+              {widgets.slice(0, 8).map((w) => (
+                <button
+                  key={w.id}
+                  onClick={() => nav(`/integrations/${w.id}`)}
+                  className="p-3 rounded-lg bg-secondary/60 hover:bg-secondary border border-border/70 hover:border-primary/50 transition-all text-left"
+                  data-testid={`widget-tile-${w.slug}`}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="w-8 h-8 rounded-md flex items-center justify-center text-xs font-bold"
+                      style={{ background: `${w.color}1A`, color: w.color, border: `1px solid ${w.color}55` }}>
+                      {w.name[0]}
+                    </span>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">{w.name}</div>
+                      <div className="mono text-[10px] text-muted-foreground">{w.category}</div>
+                    </div>
+                    <ExternalLink className="w-3 h-3 text-muted-foreground" />
+                  </div>
+                </button>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Messages snippet */}

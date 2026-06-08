@@ -43,7 +43,7 @@ export default function GpsPage() {
             </Badge>
           </div>
           <div className="relative flex-1">
-            <GpsMap load={load} stations={stations || []} />
+            <GpsMap load={load} stations={stations || []} tilt3d />
           </div>
           {/* Turn-by-turn ribbon */}
           <div className="border-t border-border/70 p-3 bg-card/60">

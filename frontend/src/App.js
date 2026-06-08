@@ -23,6 +23,11 @@ import BrokerDashboard from "@/pages/BrokerDashboard";
 import BrokerQuotePage from "@/pages/BrokerQuotePage";
 import BrokerCarriersPage from "@/pages/BrokerCarriersPage";
 import BrokerExceptionsPage from "@/pages/BrokerExceptionsPage";
+import IntegrationsPage from "@/pages/IntegrationsPage";
+import IntegrationViewerPage from "@/pages/IntegrationViewerPage";
+import SettlementsPage from "@/pages/SettlementsPage";
+import DispatchPage from "@/pages/DispatchPage";
+import PublicTrackPage from "@/pages/PublicTrackPage";
 
 const Protected = ({ children, role }) => {
   const { user, loading } = useAuth();
@@ -47,6 +52,7 @@ function App() {
           <div className="App jade-grain">
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/track/:loadId" element={<PublicTrackPage />} />
 
               <Route element={<Protected><AppShell /></Protected>}>
                 {/* Driver */}
@@ -60,6 +66,10 @@ function App() {
                 <Route path="/driver/safety" element={<Protected role="driver"><SafetyPage /></Protected>} />
                 <Route path="/driver/loads" element={<Protected role="driver"><LoadBoardPage /></Protected>} />
                 <Route path="/driver/messages" element={<Protected role="driver"><MessagesPage /></Protected>} />
+                <Route path="/driver/dispatch" element={<Protected role="driver"><DispatchPage /></Protected>} />
+                <Route path="/driver/settlements" element={<Protected role="driver"><SettlementsPage /></Protected>} />
+                <Route path="/integrations" element={<IntegrationsPage />} />
+                <Route path="/integrations/:id" element={<IntegrationViewerPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
 
                 {/* Broker */}
@@ -67,6 +77,8 @@ function App() {
                 <Route path="/broker/quote" element={<Protected role="broker"><BrokerQuotePage /></Protected>} />
                 <Route path="/broker/carriers" element={<Protected role="broker"><BrokerCarriersPage /></Protected>} />
                 <Route path="/broker/exceptions" element={<Protected role="broker"><BrokerExceptionsPage /></Protected>} />
+                <Route path="/broker/dispatch" element={<Protected role="broker"><DispatchPage /></Protected>} />
+                <Route path="/broker/settlements" element={<Protected role="broker"><SettlementsPage /></Protected>} />
                 <Route path="/broker/jade" element={<JadeChatPage />} />
               </Route>
 
