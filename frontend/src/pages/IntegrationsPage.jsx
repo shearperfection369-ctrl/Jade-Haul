@@ -28,12 +28,16 @@ export default function IntegrationsPage() {
   const [open, setOpen] = useState(false);
 
   const refresh = async () => {
-    const [{ data: cat }, { data: conn }] = await Promise.all([
-      api.get("/integrations/catalog"),
-      api.get("/integrations"),
-    ]);
-    setCatalog(cat);
-    setConnected(conn);
+    try {
+      const [{ data: cat }, { data: conn }] = await Promise.all([
+        api.get("/integrations/catalog"),
+        api.get("/integrations"),
+      ]);
+      setCatalog(cat);
+      setConnected(conn);
+    } catch (e) {
+      console.warn("integrations refresh failed:", e?.message || e);
+    }
   };
   useEffect(() => { refresh(); }, []);
 

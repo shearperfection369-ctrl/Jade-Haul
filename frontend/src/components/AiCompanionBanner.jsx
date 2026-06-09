@@ -26,7 +26,11 @@ export default function AiCompanionBanner() {
       const { data } = await api.get("/companion/tip");
       setTip(data);
       if (announce && !muted) speak(data.text);
-    } catch { /* noop */ }
+    } catch (e) {
+      // silently swallow — companion is non-critical
+      // eslint-disable-next-line no-console
+      console.warn("companion tip failed:", e?.message || e);
+    }
   };
 
   useEffect(() => {

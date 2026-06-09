@@ -23,8 +23,12 @@ export default function MaintenancePage() {
   });
 
   const refresh = async () => {
-    const { data } = await api.get("/maintenance");
-    setItems(data);
+    try {
+      const { data } = await api.get("/maintenance");
+      setItems(data);
+    } catch (e) {
+      console.warn("maintenance refresh failed:", e?.message || e);
+    }
   };
   useEffect(() => { refresh(); }, []);
 

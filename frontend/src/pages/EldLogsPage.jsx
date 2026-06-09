@@ -21,8 +21,12 @@ export default function EldLogsPage() {
   const [editingId, setEditingId] = useState(null);
 
   const refresh = async () => {
-    const { data } = await api.get("/eld/events");
-    setEvents(data);
+    try {
+      const { data } = await api.get("/eld/events");
+      setEvents(data);
+    } catch (e) {
+      console.warn("eld refresh failed:", e?.message || e);
+    }
   };
   useEffect(() => { refresh(); }, []);
 

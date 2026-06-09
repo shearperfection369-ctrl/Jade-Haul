@@ -10,6 +10,7 @@ import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import JadeMark from "@/components/JadeMark";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const driverNav = [
   { to: "/driver", icon: LayoutDashboard, label: "Command", testid: "nav-driver-dashboard" },
@@ -125,7 +126,9 @@ export default function AppShell() {
 
       {/* Main */}
       <main className="flex-1 overflow-y-auto p-3 pl-3">
-        <Outlet />
+        <ErrorBoundary>
+          <Outlet />
+        </ErrorBoundary>
       </main>
     </div>
   );

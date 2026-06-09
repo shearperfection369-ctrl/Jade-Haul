@@ -24,8 +24,12 @@ export default function FuelReceiptsPage() {
   const [autoPrompted, setAutoPrompted] = useState(false);
 
   const refresh = async () => {
-    const { data: d } = await api.get("/fuel/receipts");
-    setData(d);
+    try {
+      const { data: d } = await api.get("/fuel/receipts");
+      setData(d);
+    } catch (e) {
+      console.warn("fuel refresh failed:", e?.message || e);
+    }
   };
   useEffect(() => { refresh(); }, []);
 

@@ -27,8 +27,14 @@ export default function TripBuilderPage() {
   });
 
   const refresh = async () => {
-    const { data } = await api.get("/trips");
-    setTrips(data);
+    try {
+      const { data } = await api.get("/trips");
+      setTrips(data);
+    } catch (e) {
+      // backend offline / transient — surface lightly, do not crash page
+      // eslint-disable-next-line no-console
+      console.warn("trips refresh failed:", e?.message || e);
+    }
   };
   useEffect(() => { refresh(); }, []);
 

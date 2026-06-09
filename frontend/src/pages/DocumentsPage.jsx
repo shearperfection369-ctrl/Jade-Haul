@@ -24,8 +24,12 @@ export default function DocumentsPage() {
   const [busy, setBusy] = useState(false);
 
   const refresh = async () => {
-    const { data: list } = await api.get("/documents");
-    setDocs(list);
+    try {
+      const { data: list } = await api.get("/documents");
+      setDocs(list);
+    } catch (e) {
+      console.warn("documents refresh failed:", e?.message || e);
+    }
   };
   useEffect(() => { refresh(); }, []);
 

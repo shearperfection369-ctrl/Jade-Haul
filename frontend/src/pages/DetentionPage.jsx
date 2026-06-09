@@ -32,9 +32,13 @@ export default function DetentionPage() {
   const autoCuedRef = useRef(false);
 
   const refresh = async () => {
-    const { data } = await api.get("/detention/list");
-    setList(data);
-    setActive(data.find((d) => !d.end_at) || null);
+    try {
+      const { data } = await api.get("/detention/list");
+      setList(data);
+      setActive(data.find((d) => !d.end_at) || null);
+    } catch (e) {
+      console.warn("detention refresh failed:", e?.message || e);
+    }
   };
   useEffect(() => { refresh(); }, []);
   useEffect(() => {
