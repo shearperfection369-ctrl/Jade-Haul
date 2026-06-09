@@ -58,7 +58,7 @@ Phase 3 adds: editable ELD logs, manual trip builder, maintenance ledger, docume
 - **iframe blocking** — some integration providers send X-Frame-Options DENY; user gets a "open in new tab" fallback.
 
 ## Backlog
-**P0** — none. All 46/46 backend + ~95% frontend testids passing.
+**P0** — none. Wrap-up verified Iter 4 (Feb 2026): 56/56 backend pytest + 100% frontend P0 flows, 0 console errors, useSafeFetch AbortController confirmed canceling in-flight requests on unmount.
 **P1**
 - Mobile-native shell (Capacitor) for in-cab tablet
 - Multi-tenant tenancy (org_id everywhere)
@@ -81,3 +81,7 @@ Phase 3 adds: editable ELD logs, manual trip builder, maintenance ledger, docume
 - Iter 2 (Feb 2026) — Frontend 100% pass after StrictMode fix + Jade Haul rebrand.
 - Iter 3 (Feb 2026) — Backend 32/32 + full Phase 2 (integrations, public track, settlements, dispatch).
 - Iter 3 (re-run, Phase 3) — Backend 46/46, frontend ~95% (2 minor testid gaps, fixed post-test).
+- Iter 4 (Feb 2026, wrap-up) — Backend 56/56 pytest (10 new phase4 wrap tests added in `/app/backend/tests/test_phase4_verify.py`). Frontend: all P0 performance fixes verified — rapid switching across 9 driver tabs clean, window blur/focus cycles trigger no excess refetches, useSafeFetch correctly aborts in-flight `/api/tts/speak` on unmount. JADE chat + Nova TTS + POI overlays + Voice Trip Wizard end-to-end green. 0 console errors across full driver+broker walkthrough.
+
+## Last working item (resolved)
+- P0 App Sluggishness / Excessive Re-renders — FIXED & VERIFIED (Iter 4). `useSafeFetch` (AbortController + alive ref), debounced AI Companion/geofence polling, and `React.memo` on Leaflet maps confirmed working under rapid navigation stress.
