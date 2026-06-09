@@ -2,21 +2,23 @@ import React, { useEffect, useMemo, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/layout/PageHeader";
 import JadeOrb from "@/components/JadeOrb";
+import JadeMap from "@/components/JadeMap";
+import VoiceTripWizard from "@/components/VoiceTripWizard";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { Mic, MicOff, Send, Volume2, VolumeX } from "lucide-react";
+import { Mic, MicOff, Send, Volume2, VolumeX, MapPin, Route as RouteIcon } from "lucide-react";
 import { toast } from "sonner";
 
 import { speak as ttsSpeak, setMuted as setTtsMuted } from "@/lib/tts";
 
 const SUGGESTIONS = [
-  "When should I take my next break?",
-  "Where's the cleanest truck stop ahead?",
-  "Read me my current load status.",
-  "Am I going to make the delivery on time?",
+  "Where's the nearest truck mechanic?",
   "Find me a hot meal off I-10 in the next 90 mi.",
+  "What's the cleanest truck stop ahead?",
+  "When should I take my next break?",
+  "Are the Phoenix DC delivery hours still open?",
 ];
 
 export default function JadeChatPage() {
@@ -28,8 +30,24 @@ export default function JadeChatPage() {
   const [speaking, setSpeaking] = useState(false);
   const [muted, setMuted] = useState(false);
   const [sessionId] = useState(() => `jade-${Math.random().toString(36).slice(2, 10)}`);
+  const [coords, setCoords] = useState(null);
+  const [visual, setVisual] = useState(null);
+  const [wizardOpen, setWizardOpen] = useState(false);
   const recogRef = useRef(null);
   const scrollRef = useRef(null);
+
+  // Browser geolocation — falls back to Phoenix demo if unavailable / denied
+  useEffect(() => {
+    if (!navigator.geolocation) {
+      setCoords({ lat: 33.4484, lng: -112.0740, source: "fallback" });
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (pos) => setCoords({ lat: pos.coords.latitude, lng: pos.coords.longitude, source: "gps" }),
+      () => setCoords({ lat: 33.4484, lng: -112.0740, source: "fallback" }),
+      { enableHighAccuracy: true, timeout: 5000, maximumAge: 60000 }
+    );
+  }, []);
 
   useEffect(() => {
     if (scrollRef.current) scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
@@ -56,9 +74,11 @@ export default function JadeChatPage() {
         session_id: sessionId,
         message: t,
         context: { eta_hr: 11, drive_remaining_hr: 4.6, next_break_min: 87, load_id: "JL-2026-00917" },
+        current_location: coords || undefined,
       });
       const reply = data.reply || "(no reply)";
-      setMessages((m) => [...m, { role: "assistant", text: reply }]);
+      setMessages((m) => [...m, { role: "assistant", text: reply, visual: data.visual }]);
+      if (data.visual) setVisual(data.visual);
       speak(reply);
     } catch (e) {
       toast.error("JADE didn't respond — check connection");
@@ -101,12 +121,21 @@ export default function JadeChatPage() {
     <div>
       <PageHeader
         title="JADE · Voice Co-pilot"
-        subtitle="Claude Sonnet 4.5 + Browser Voice"
+        subtitle="Claude Sonnet 4.5 + Nova Voice + GPS-aware"
         right={
           <div className="flex items-center gap-2">
+            {coords ? (
+              <Badge variant="outline" className="border-primary/40 text-primary mono text-[10px]" data-testid="jade-coords-badge">
+                <MapPin className="w-3 h-3 mr-1" />
+                {coords.source === "gps" ? "GPS LOCK" : "DEMO LOC"} · {coords.lat.toFixed(2)}, {coords.lng.toFixed(2)}
+              </Badge>
+            ) : null}
             <Badge variant="outline" className="border-primary/40 text-primary mono text-[10px]">
               session · {sessionId}
             </Badge>
+            <Button variant="outline" size="sm" onClick={() => setWizardOpen(true)} data-testid="open-voice-wizard">
+              <RouteIcon className="w-3.5 h-3.5 mr-1" /> Voice trip
+            </Button>
             <Button variant="ghost" size="icon" onClick={() => { const next = !muted; setMuted(next); setTtsMuted(next); }} data-testid="jade-mute-btn">
               {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </Button>
@@ -114,7 +143,7 @@ export default function JadeChatPage() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1.4fr] gap-3">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_1fr_1fr] gap-3">
         <Card className="jade-panel p-6 flex flex-col items-center justify-center min-h-[460px]">
           <JadeOrb state={orbState} size={240} />
           <div className="mt-6 mono text-[11px] tracking-[0.25em] text-muted-foreground uppercase">
@@ -176,7 +205,18 @@ export default function JadeChatPage() {
             </Button>
           </div>
         </Card>
+
+        <Card className="jade-panel p-0 flex flex-col min-h-[460px] overflow-hidden jade-tracing-border">
+          <JadeMap visual={visual} />
+        </Card>
       </div>
+
+      <VoiceTripWizard
+        open={wizardOpen}
+        onClose={() => setWizardOpen(false)}
+        currentLocation={coords}
+        onTripCreated={() => { /* could route to /driver/trip */ }}
+      />
     </div>
   );
 }

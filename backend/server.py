@@ -142,6 +142,7 @@ class JadeChatRequest(BaseModel):
     session_id: str
     message: str
     context: Optional[dict] = None
+    current_location: Optional[dict] = None  # {lat, lng, city?, state?}
 
 
 class BillScanRequest(BaseModel):
@@ -503,16 +504,78 @@ Style:
 
 @api.post("/jade/chat")
 async def jade_chat(req: JadeChatRequest, user: dict = Depends(current_user)):
-    """Non-streaming chat (simple JSON reply) — frontend will TTS it via WebSpeech."""
+    """Non-streaming chat. Location-aware: detects mechanic/fuel/shipper/rest/food
+    queries and injects nearby POIs (with hours, phone, distance) into the prompt."""
     try:
         # Local import to keep server boot resilient if lib missing.
         from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
+        from data.pois import POIS, detect_categories
+        from math import asin, cos, radians, sin, sqrt
 
         ctx_lines = []
         if req.context:
             for k, v in req.context.items():
                 ctx_lines.append(f"- {k}: {v}")
         ctx_block = ("\n\nDriver/Broker context:\n" + "\n".join(ctx_lines)) if ctx_lines else ""
+
+        # ---- Location-aware POI injection ----
+        loc_block = ""
+        loc = req.current_location or {}
+        visual_payload = None
+        if loc.get("lat") is not None and loc.get("lng") is not None:
+            lat0, lng0 = float(loc["lat"]), float(loc["lng"])
+            ctx_lines.append(f"- current_lat: {lat0:.4f}")
+            ctx_lines.append(f"- current_lng: {lng0:.4f}")
+            if loc.get("city"): ctx_lines.append(f"- current_city: {loc['city']}")
+            if loc.get("state"): ctx_lines.append(f"- current_state: {loc['state']}")
+
+            categories = detect_categories(req.message)
+            if not categories:
+                categories = ["mechanic", "fuel", "rest"]
+
+            def _hav(a_lat, a_lng, b_lat, b_lng):
+                R = 3958.8
+                dlat = radians(b_lat - a_lat)
+                dlng = radians(b_lng - a_lng)
+                s = sin(dlat / 2) ** 2 + cos(radians(a_lat)) * cos(radians(b_lat)) * sin(dlng / 2) ** 2
+                return 2 * R * asin(sqrt(s))
+
+            scored = [(p, _hav(lat0, lng0, p["lat"], p["lng"])) for p in POIS if p["category"] in categories]
+            scored.sort(key=lambda x: x[1])
+            top = scored[:6]
+            if top:
+                lines = []
+                for p, d in top:
+                    lines.append(
+                        f"- {p['name']} ({p['category']}) · {d:.0f} mi · {p['city']}, {p['state']} · "
+                        f"Hours: {p['hours']} · Phone: {p['phone'] or 'n/a'} · "
+                        f"Services: {', '.join(p['services'][:4])} · Notes: {p['notes']}"
+                    )
+                loc_block = (
+                    f"\n\nNearby locations (relative to driver's current GPS — categories detected: {', '.join(categories)}):\n"
+                    + "\n".join(lines)
+                    + "\n\nWhen the driver asks about a place, USE these specific records — quote name, distance, hours, and phone. Do not invent places."
+                )
+                # Build visual payload for the frontend map
+                primary = top[0][0]
+                visual_payload = {
+                    "origin": {"lat": lat0, "lng": lng0, "name": f"{loc.get('city','You')} · current"},
+                    "primary": {
+                        "id": primary["id"], "name": primary["name"], "category": primary["category"],
+                        "lat": primary["lat"], "lng": primary["lng"], "distance_mi": round(top[0][1], 1),
+                        "city": primary["city"], "state": primary["state"], "address": primary["address"],
+                        "phone": primary["phone"], "hours": primary["hours"],
+                        "services": primary["services"], "notes": primary["notes"], "rating": primary["rating"],
+                    },
+                    "others": [
+                        {"id": p["id"], "name": p["name"], "category": p["category"],
+                         "lat": p["lat"], "lng": p["lng"], "distance_mi": round(d, 1),
+                         "city": p["city"], "state": p["state"]}
+                        for p, d in top[1:]
+                    ],
+                    "categories": categories,
+                }
+            ctx_block = ("\n\nDriver/Broker context:\n" + "\n".join(ctx_lines)) + loc_block
 
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
@@ -521,12 +584,10 @@ async def jade_chat(req: JadeChatRequest, user: dict = Depends(current_user)):
         ).with_model("anthropic", "claude-sonnet-4-5-20250929")
 
         reply_text = ""
-        # send_message is acceptable here (single short reply, low latency expected)
         result = await chat.send_message(UserMessage(text=req.message))
         if isinstance(result, str):
             reply_text = result
         else:
-            # Object-style response — try common attrs
             reply_text = getattr(result, "text", None) or getattr(result, "content", None) or str(result)
 
         # persist
@@ -547,7 +608,7 @@ async def jade_chat(req: JadeChatRequest, user: dict = Depends(current_user)):
             "ts": utcnow_iso(),
         })
 
-        return {"reply": reply_text, "session_id": req.session_id}
+        return {"reply": reply_text, "session_id": req.session_id, "visual": visual_payload}
     except Exception as exc:  # noqa: BLE001
         logger.exception("jade_chat failure")
         # Graceful fallback so the demo never appears dead.

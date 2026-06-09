@@ -481,4 +481,42 @@ def make_router(db, current_user, utcnow_iso):
         t = random.choice(tips)
         return {"icon": t["icon"], "text": t["text"], "ts": utcnow_iso()}
 
+    # ---------------- Locations / POI intelligence ----------------
+    from data.pois import POIS, detect_categories  # local import to avoid circular
+    from math import asin, cos, radians, sin, sqrt
+
+    def _hav_mi(a_lat, a_lng, b_lat, b_lng):
+        R = 3958.8
+        dlat = radians(b_lat - a_lat)
+        dlng = radians(b_lng - a_lng)
+        s = sin(dlat / 2) ** 2 + cos(radians(a_lat)) * cos(radians(b_lat)) * sin(dlng / 2) ** 2
+        return 2 * R * asin(sqrt(s))
+
+    def _nearby(lat: float, lng: float, categories=None, limit: int = 5, radius_mi: float = 300.0):
+        cats = set(categories or [])
+        out = []
+        for p in POIS:
+            if cats and p["category"] not in cats:
+                continue
+            d = _hav_mi(lat, lng, p["lat"], p["lng"])
+            if d > radius_mi:
+                continue
+            out.append({**p, "distance_mi": round(d, 1)})
+        out.sort(key=lambda x: x["distance_mi"])
+        return out[:limit]
+
+    @router.get("/locations/nearby")
+    async def locations_nearby(
+        lat: float, lng: float, category: Optional[str] = None,
+        radius_mi: float = 300.0, limit: int = 5,
+        user: dict = Depends(current_user),
+    ):
+        cats = [c.strip() for c in category.split(",")] if category else None
+        return {"origin": {"lat": lat, "lng": lng}, "results": _nearby(lat, lng, cats, limit, radius_mi)}
+
+    @router.get("/locations/categories")
+    async def locations_categories(user: dict = Depends(current_user)):
+        cats = sorted({p["category"] for p in POIS})
+        return [{"category": c, "count": sum(1 for p in POIS if p["category"] == c)} for c in cats]
+
     return router
