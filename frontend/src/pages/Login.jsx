@@ -10,8 +10,6 @@ import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
 import { Truck, Briefcase, Fingerprint, Shield } from "lucide-react";
 
-const JADE_VOICE_URL = "https://customer-assets.emergentagent.com/job_broker-copilot-2/artifacts/ncrcc3sk_01-jade-vigor-code.mp3";
-
 export default function Login() {
   const { user, login } = useAuth();
   const nav = useNavigate();
@@ -24,11 +22,6 @@ export default function Login() {
 
   const triggerBiometric = () => {
     setScanning(true);
-    try {
-      new Audio(JADE_VOICE_URL).play().catch(() => {});
-    } catch {
-      /* audio unavailable */
-    }
   };
 
   const onBiometricComplete = async () => {

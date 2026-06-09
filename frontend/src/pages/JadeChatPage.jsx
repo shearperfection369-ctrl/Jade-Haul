@@ -11,8 +11,6 @@ import { toast } from "sonner";
 
 import { speak as ttsSpeak, setMuted as setTtsMuted } from "@/lib/tts";
 
-const JADE_INTRO = "https://customer-assets.emergentagent.com/job_broker-copilot-2/artifacts/ncrcc3sk_01-jade-vigor-code.mp3";
-
 const SUGGESTIONS = [
   "When should I take my next break?",
   "Where's the cleanest truck stop ahead?",
@@ -94,14 +92,6 @@ export default function JadeChatPage() {
     r.start();
   };
 
-  const playIntro = () => {
-    try {
-      new Audio(JADE_INTRO).play();
-    } catch {
-      /* audio unavailable */
-    }
-  };
-
   const orbState = useMemo(
     () => (speaking ? "speaking" : listening ? "listening" : "idle"),
     [speaking, listening]
@@ -140,7 +130,6 @@ export default function JadeChatPage() {
             >
               {listening ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
             </Button>
-            <Button variant="outline" onClick={playIntro} data-testid="jade-intro-btn">Play JADE signature</Button>
           </div>
           <div className="mt-4 text-[11px] text-muted-foreground text-center max-w-xs leading-relaxed">
             Tap the mic, ask anything about your trip — HOS, parking, weather, ETA. JADE will speak back through your in-cab speakers.
