@@ -78,7 +78,7 @@ export default function DriverDashboard() {
               Open Split View <ArrowRight className="w-4 h-4 ml-1" />
             </Button>
           </div>
-          <div className="h-[calc(100%-57px)]"><GpsMap load={load} stations={stations || []} /></div>
+          <div className="h-[calc(100%-57px)]"><GpsMap load={load} stations={stations || []} animateDriver={false} /></div>
         </div>
 
         {/* JADE Orb */}

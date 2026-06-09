@@ -4,40 +4,35 @@ import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { speak, setMuted, isMuted } from "@/lib/tts";
 import {
-  Sparkles, Volume2, VolumeX, Clock, Fuel, MapPin,
+  Sparkles, Volume2, VolumeX, Play, Clock, Fuel, MapPin,
   Wind, Thermometer, Truck, Coffee, Shield
 } from "lucide-react";
 
 const ICONS = { Clock, Fuel, MapPin, Wind, Thermometer, Truck, Coffee, Shield };
 
 /**
- * Floating "always-on" JADE companion banner.
- * - Cycles a fresh proactive tip every 45s
- * - Speaks the tip aloud (Nova voice) unless muted
- * - Driver can mute / fetch next / dismiss
+ * Companion banner — rotates silently every 2 minutes.  Audio is opt-in via the
+ * Play button to avoid the constant TTS download/decode chain that previously
+ * locked up the audio system every 45 seconds.
  */
-export default function AiCompanionBanner() {
+function AiCompanionBanner() {
   const [tip, setTip] = useState(null);
   const [muted, setMutedState] = useState(isMuted());
   const [hidden, setHidden] = useState(false);
 
-  const fetchTip = async (announce = true) => {
+  const fetchTip = async () => {
     try {
       const { data } = await api.get("/companion/tip");
       setTip(data);
-      if (announce && !muted) speak(data.text);
     } catch (e) {
-      // silently swallow — companion is non-critical
-      // eslint-disable-next-line no-console
       console.warn("companion tip failed:", e?.message || e);
     }
   };
 
   useEffect(() => {
-    fetchTip(true);
-    const id = setInterval(() => fetchTip(true), 45_000);
+    fetchTip();
+    const id = setInterval(fetchTip, 120_000); // 2 min — silent rotate
     return () => clearInterval(id);
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (hidden || !tip) return null;
@@ -55,14 +50,26 @@ export default function AiCompanionBanner() {
       <Button
         variant="ghost"
         size="icon"
+        onClick={() => speak(tip.text)}
+        title="Hear it"
+        data-testid="companion-play"
+        disabled={muted}
+      >
+        <Play className="w-4 h-4" />
+      </Button>
+      <Button
+        variant="ghost"
+        size="icon"
         onClick={() => { const next = !muted; setMuted(next); setMutedState(next); }}
         data-testid="companion-mute"
         title={muted ? "Unmute Jade" : "Mute Jade"}
       >
         {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
       </Button>
-      <Button variant="outline" size="sm" onClick={() => fetchTip(true)} data-testid="companion-next">Next</Button>
+      <Button variant="outline" size="sm" onClick={fetchTip} data-testid="companion-next">Next</Button>
       <Button variant="ghost" size="sm" onClick={() => setHidden(true)} data-testid="companion-dismiss">×</Button>
     </Card>
   );
 }
+
+export default React.memo(AiCompanionBanner);

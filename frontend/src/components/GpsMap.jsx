@@ -10,13 +10,15 @@ L.Icon.Default.mergeOptions({
 });
 
 /** Dark HUD-style 3D-feeling GPS map (leaflet w/ Carto Dark Matter). */
-export default function GpsMap({ load, stations = [], height = "100%", tilt3d = false, animateDriver = true }) {
+function GpsMapImpl({ load, stations = [], height = "100%", tilt3d = false, animateDriver = true }) {
   const [progress, setProgress] = useState(0.35);
   useEffect(() => {
     if (!animateDriver) return;
+    // Slowed from 800ms → 2500ms to cut Leaflet re-render cost by ~3x without
+    // visually breaking the "moving driver" effect.
     const id = setInterval(() => {
       setProgress((p) => (p + 0.0025) % 1);
-    }, 800);
+    }, 2500);
     return () => clearInterval(id);
   }, [animateDriver]);
 
@@ -117,3 +119,12 @@ export default function GpsMap({ load, stations = [], height = "100%", tilt3d = 
     </div>
   );
 }
+
+// React.memo — Leaflet mount is expensive (~80ms). Skip re-render when neither
+// the load identity nor the stations array changes.
+export default React.memo(GpsMapImpl, (a, b) =>
+  a.load?.load_id === b.load?.load_id &&
+  a.stations === b.stations &&
+  a.tilt3d === b.tilt3d &&
+  a.animateDriver === b.animateDriver
+);

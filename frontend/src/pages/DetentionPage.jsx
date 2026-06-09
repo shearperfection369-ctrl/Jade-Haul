@@ -47,6 +47,8 @@ export default function DetentionPage() {
   }, []);
 
   // Auto on-site detection — browser geolocation → server geofence check.
+  // Slowed from 4s → 15s to drastically cut network chatter; geofences don't
+  // move and the driver doesn't physically move that fast either.
   useEffect(() => {
     if (!autoMode || active) {
       if (watchRef.current && navigator.geolocation) {
@@ -55,19 +57,21 @@ export default function DetentionPage() {
       }
       return;
     }
-    if (!navigator.geolocation) {
-      setGeo({ error: "Browser geolocation unavailable" });
-      return;
-    }
+    let alive = true;
+    const ctrl = typeof AbortController !== "undefined" ? new AbortController() : null;
     const sim = setInterval(async () => {
-      // Demo coords: cycle near a known geofence so the auto-cue can fire.
       const demoFences = [
-        { lat: 33.4484, lng: -112.0740 }, // Phoenix DC
-        { lat: 35.5281, lng: -108.7426 }, // Gallup
+        { lat: 33.4484, lng: -112.0740 },
+        { lat: 35.5281, lng: -108.7426 },
       ];
-      const f = demoFences[Math.floor(Date.now() / 8000) % demoFences.length];
+      const f = demoFences[Math.floor(Date.now() / 30000) % demoFences.length];
       try {
-        const { data } = await api.post("/geofence/ping", { lat: f.lat, lng: f.lng, speed_mph: 0 });
+        const { data } = await api.post(
+          "/geofence/ping",
+          { lat: f.lat, lng: f.lng, speed_mph: 0 },
+          ctrl ? { signal: ctrl.signal } : {}
+        );
+        if (!alive) return;
         setGeo(data);
         if (data.on_site && !autoCuedRef.current && !active) {
           autoCuedRef.current = true;
@@ -79,8 +83,8 @@ export default function DetentionPage() {
           refresh();
         }
       } catch { /* noop */ }
-    }, 4000);
-    return () => clearInterval(sim);
+    }, 15000);
+    return () => { alive = false; ctrl?.abort?.(); clearInterval(sim); };
   }, [autoMode, active]);
 
   const start = async () => {

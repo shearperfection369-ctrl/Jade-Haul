@@ -16,7 +16,7 @@ L.Icon.Default.mergeOptions({
  * Compact map panel that Jade uses to visually back up her recommendations.
  * Props.visual = { origin:{lat,lng,name}, primary:{...POI}, others:[...], categories[] }
  */
-export default function JadeMap({ visual }) {
+function JadeMapImpl({ visual }) {
   if (!visual || !visual.primary) {
     return (
       <div className="h-full flex items-center justify-center text-muted-foreground text-sm p-6 text-center">
@@ -131,3 +131,7 @@ export default function JadeMap({ visual }) {
     </div>
   );
 }
+
+// Memoize — visual payload only changes when Jade replies, so we skip the
+// expensive Leaflet remount on unrelated parent state changes.
+export default React.memo(JadeMapImpl, (a, b) => a.visual === b.visual);
