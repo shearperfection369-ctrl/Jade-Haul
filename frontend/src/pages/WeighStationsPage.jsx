@@ -28,7 +28,7 @@ export default function WeighStationsPage() {
         }
       />
 
-      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-3 flex-1 min-h-0">
+      <div className="grid grid-cols-1 lg:grid-cols-[1fr_360px] gap-3 flex-1 min-h-0" data-testid="us-weigh-map">
         {/* Map */}
         <Card className="jade-panel p-0 overflow-hidden relative jade-tracing-border min-h-[420px]">
           {["top-left", "top-right", "bottom-left", "bottom-right"].map((p) => (

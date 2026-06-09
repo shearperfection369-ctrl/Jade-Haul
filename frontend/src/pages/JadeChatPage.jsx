@@ -182,7 +182,7 @@ export default function JadeChatPage() {
               onKeyDown={(e) => e.key === "Enter" && send()}
               data-testid="jade-text-input"
             />
-            <Button onClick={() => send()} data-testid="jade-send-btn">
+            <Button onClick={() => send()} data-testid="jade-send-btn" aria-label="Send message">
               <Send className="w-4 h-4" />
             </Button>
           </div>
