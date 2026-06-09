@@ -519,4 +519,90 @@ def make_router(db, current_user, utcnow_iso):
         cats = sorted({p["category"] for p in POIS})
         return [{"category": c, "count": sum(1 for p in POIS if p["category"] == c)} for c in cats]
 
+    # ---------------- Lanes / Routes catalog + geocoder ----------------
+    from data.lanes import LANES, CITY_TABLE, geocode_city  # local import
+
+    @router.get("/routes/catalog")
+    async def routes_catalog(user: dict = Depends(current_user)):
+        return LANES
+
+    @router.get("/cities")
+    async def cities_index(q: Optional[str] = None, limit: int = 12, user: dict = Depends(current_user)):
+        q_norm = (q or "").strip().lower()
+        if not q_norm:
+            return CITY_TABLE[:limit]
+        hits = [c for c in CITY_TABLE if q_norm in c["name"].lower()]
+        return hits[:limit]
+
+    @router.get("/locations/geocode")
+    async def geocode_endpoint(name: str, user: dict = Depends(current_user)):
+        match = geocode_city(name)
+        if not match:
+            raise HTTPException(404, f"No match for '{name}'")
+        return match
+
+    # ---------------- Active trip control ----------------
+    @router.get("/trips/active")
+    async def get_active_trip(user: dict = Depends(current_user)):
+        doc = await db.trips.find_one(
+            {"user_id": user["id"], "active": True}, {"_id": 0}
+        )
+        return doc  # may be None
+
+    class ActiveTripSet(BaseModel):
+        trip_id: str
+
+    @router.post("/trips/active")
+    async def set_active_trip(req: ActiveTripSet, user: dict = Depends(current_user)):
+        trip = await db.trips.find_one({"id": req.trip_id, "user_id": user["id"]}, {"_id": 0})
+        if not trip:
+            raise HTTPException(404, "Trip not found")
+        # clear any prior actives
+        await db.trips.update_many({"user_id": user["id"]}, {"$set": {"active": False}})
+        await db.trips.update_one(
+            {"id": req.trip_id, "user_id": user["id"]},
+            {"$set": {"active": True, "status": "IN_PROGRESS"}},
+        )
+        trip["active"] = True
+        trip["status"] = "IN_PROGRESS"
+        return trip
+
+    @router.delete("/trips/active")
+    async def clear_active_trip(user: dict = Depends(current_user)):
+        await db.trips.update_many({"user_id": user["id"]}, {"$set": {"active": False}})
+        return {"ok": True}
+
+    @router.post("/trips/{trip_id}/pause")
+    async def pause_trip(trip_id: str, user: dict = Depends(current_user)):
+        res = await db.trips.update_one(
+            {"id": trip_id, "user_id": user["id"]},
+            {"$set": {"status": "PAUSED"}},
+        )
+        if res.matched_count == 0:
+            raise HTTPException(404, "Trip not found")
+        return {"ok": True, "status": "PAUSED"}
+
+    @router.post("/trips/{trip_id}/resume")
+    async def resume_trip(trip_id: str, user: dict = Depends(current_user)):
+        res = await db.trips.update_one(
+            {"id": trip_id, "user_id": user["id"]},
+            {"$set": {"status": "IN_PROGRESS"}},
+        )
+        if res.matched_count == 0:
+            raise HTTPException(404, "Trip not found")
+        return {"ok": True, "status": "IN_PROGRESS"}
+
+    @router.post("/trips/{trip_id}/duplicate")
+    async def duplicate_trip(trip_id: str, user: dict = Depends(current_user)):
+        src = await db.trips.find_one({"id": trip_id, "user_id": user["id"]}, {"_id": 0})
+        if not src:
+            raise HTTPException(404, "Trip not found")
+        clone = {**src, "id": str(uuid.uuid4()),
+                 "status": "PLANNED", "active": False,
+                 "created_at": utcnow_iso(),
+                 "name": f"{src.get('name', 'Trip')} · re-book"}
+        await db.trips.insert_one(clone.copy())
+        clone.pop("_id", None)
+        return clone
+
     return router
