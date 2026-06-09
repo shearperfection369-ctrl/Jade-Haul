@@ -3,7 +3,8 @@ import { Outlet, NavLink, useNavigate } from "react-router-dom";
 import {
   LayoutDashboard, Map, ClipboardList, Timer, ScanLine, Gauge, Mic,
   Activity, Truck, MessageSquare, Settings, LogOut, Briefcase,
-  TrendingUp, AlertTriangle, Users, Plug, DollarSign, Radio
+  TrendingUp, AlertTriangle, Users, Plug, DollarSign, Radio,
+  Route as RouteIcon, Wrench, FolderArchive, Receipt
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -12,10 +13,14 @@ import JadeMark from "@/components/JadeMark";
 
 const driverNav = [
   { to: "/driver", icon: LayoutDashboard, label: "Command", testid: "nav-driver-dashboard" },
+  { to: "/driver/trip", icon: RouteIcon, label: "Trip Builder", testid: "nav-driver-trip" },
   { to: "/driver/gps", icon: Map, label: "GPS · Split", testid: "nav-driver-gps" },
   { to: "/driver/logs", icon: ClipboardList, label: "ELD Logs", testid: "nav-driver-logs" },
   { to: "/driver/detention", icon: Timer, label: "Detention", testid: "nav-driver-detention" },
   { to: "/driver/scan", icon: ScanLine, label: "Bill Scanner", testid: "nav-driver-scan" },
+  { to: "/driver/fuel", icon: Receipt, label: "Fuel · IFTA", testid: "nav-driver-fuel" },
+  { to: "/driver/maintenance", icon: Wrench, label: "Maintenance", testid: "nav-driver-maintenance" },
+  { to: "/driver/documents", icon: FolderArchive, label: "Documents", testid: "nav-driver-documents" },
   { to: "/driver/weigh", icon: Gauge, label: "Weigh Bypass", testid: "nav-driver-weigh" },
   { to: "/driver/jade", icon: Mic, label: "JADE Voice", testid: "nav-driver-jade" },
   { to: "/driver/safety", icon: Activity, label: "Safety", testid: "nav-driver-safety" },

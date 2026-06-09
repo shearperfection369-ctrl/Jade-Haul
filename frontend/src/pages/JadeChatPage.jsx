@@ -9,6 +9,8 @@ import { Badge } from "@/components/ui/badge";
 import { Mic, MicOff, Send, Volume2, VolumeX } from "lucide-react";
 import { toast } from "sonner";
 
+import { speak as ttsSpeak, setMuted as setTtsMuted } from "@/lib/tts";
+
 const JADE_INTRO = "https://customer-assets.emergentagent.com/job_broker-copilot-2/artifacts/ncrcc3sk_01-jade-vigor-code.mp3";
 
 const SUGGESTIONS = [
@@ -36,21 +38,14 @@ export default function JadeChatPage() {
   }, [messages]);
 
   const speak = (text) => {
-    if (muted || !("speechSynthesis" in window)) return;
-    try {
-      window.speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(text);
-      u.rate = 1.02;
-      u.pitch = 1.05;
-      const voices = window.speechSynthesis.getVoices();
-      const v = voices.find((v) => /female|samantha|jenny|aria/i.test(v.name)) || voices[0];
-      if (v) u.voice = v;
-      u.onstart = () => setSpeaking(true);
-      u.onend = () => setSpeaking(false);
-      window.speechSynthesis.speak(u);
-    } catch {
-      /* speech unavailable */
-    }
+    if (muted) return;
+    ttsSpeak(text, {
+      voice: "nova",
+      model: "tts-1",
+      speed: 1.0,
+      onStart: () => setSpeaking(true),
+      onEnd: () => setSpeaking(false),
+    });
   };
 
   const send = async (text) => {
@@ -122,7 +117,7 @@ export default function JadeChatPage() {
             <Badge variant="outline" className="border-primary/40 text-primary mono text-[10px]">
               session · {sessionId}
             </Badge>
-            <Button variant="ghost" size="icon" onClick={() => setMuted((m) => !m)} data-testid="jade-mute-btn">
+            <Button variant="ghost" size="icon" onClick={() => { const next = !muted; setMuted(next); setTtsMuted(next); }} data-testid="jade-mute-btn">
               {muted ? <VolumeX className="w-4 h-4" /> : <Volume2 className="w-4 h-4" />}
             </Button>
           </div>

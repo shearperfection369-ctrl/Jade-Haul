@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { api } from "@/lib/api";
 import PageHeader from "@/components/layout/PageHeader";
 import { Card } from "@/components/ui/card";
@@ -6,8 +6,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Timer, Play, Square, DollarSign } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Timer, Play, Square, DollarSign, MapPin, Radar } from "lucide-react";
 import { toast } from "sonner";
+import { speak } from "@/lib/tts";
 
 function fmtDur(min) {
   if (min == null) return "--:--:--";
@@ -24,6 +26,10 @@ export default function DetentionPage() {
   const [now, setNow] = useState(Date.now());
   const [shipper, setShipper] = useState("FreshHarvest Foods · Phoenix DC");
   const [location, setLocation] = useState("4400 W Buckeye Rd, Phoenix AZ");
+  const [autoMode, setAutoMode] = useState(true);
+  const [geo, setGeo] = useState(null);
+  const watchRef = useRef(null);
+  const autoCuedRef = useRef(false);
 
   const refresh = async () => {
     const { data } = await api.get("/detention/list");
@@ -35,6 +41,43 @@ export default function DetentionPage() {
     const id = setInterval(() => setNow(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
+
+  // Auto on-site detection — browser geolocation → server geofence check.
+  useEffect(() => {
+    if (!autoMode || active) {
+      if (watchRef.current && navigator.geolocation) {
+        navigator.geolocation.clearWatch(watchRef.current);
+        watchRef.current = null;
+      }
+      return;
+    }
+    if (!navigator.geolocation) {
+      setGeo({ error: "Browser geolocation unavailable" });
+      return;
+    }
+    const sim = setInterval(async () => {
+      // Demo coords: cycle near a known geofence so the auto-cue can fire.
+      const demoFences = [
+        { lat: 33.4484, lng: -112.0740 }, // Phoenix DC
+        { lat: 35.5281, lng: -108.7426 }, // Gallup
+      ];
+      const f = demoFences[Math.floor(Date.now() / 8000) % demoFences.length];
+      try {
+        const { data } = await api.post("/geofence/ping", { lat: f.lat, lng: f.lng, speed_mph: 0 });
+        setGeo(data);
+        if (data.on_site && !autoCuedRef.current && !active) {
+          autoCuedRef.current = true;
+          setShipper(data.shipper.name);
+          setLocation(`${data.shipper.lat.toFixed(3)}, ${data.shipper.lng.toFixed(3)}`);
+          await api.post("/detention/start", { shipper_name: data.shipper.name, location: `${data.shipper.lat.toFixed(3)}, ${data.shipper.lng.toFixed(3)}` });
+          toast.success(`On-site detected at ${data.shipper.name} — timer started`);
+          speak(`On-site at ${data.shipper.name}. Detention timer is now running.`);
+          refresh();
+        }
+      } catch { /* noop */ }
+    }, 4000);
+    return () => clearInterval(sim);
+  }, [autoMode, active]);
 
   const start = async () => {
     if (!shipper.trim() || !location.trim()) {
@@ -57,7 +100,18 @@ export default function DetentionPage() {
 
   return (
     <div>
-      <PageHeader title="Detention Timer" subtitle="Driver · Billable On-Site Time" />
+      <PageHeader title="Detention Timer" subtitle="Driver · Billable On-Site Time"
+        right={
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <Switch checked={autoMode} onCheckedChange={setAutoMode} data-testid="detention-auto-toggle" />
+              <Label className="text-sm flex items-center gap-1"><Radar className="w-3.5 h-3.5 text-primary" /> Auto-detect on-site</Label>
+            </div>
+            {geo?.on_site && (
+              <Badge className="bg-primary text-primary-foreground"><MapPin className="w-3 h-3 mr-1" /> {geo.shipper.name}</Badge>
+            )}
+          </div>
+        } />
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
         <Card className="jade-panel p-6 jade-tracing-border">
           <div className="mono text-[10px] uppercase tracking-widest text-muted-foreground flex items-center gap-2">

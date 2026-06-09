@@ -28,6 +28,10 @@ import IntegrationViewerPage from "@/pages/IntegrationViewerPage";
 import SettlementsPage from "@/pages/SettlementsPage";
 import DispatchPage from "@/pages/DispatchPage";
 import PublicTrackPage from "@/pages/PublicTrackPage";
+import TripBuilderPage from "@/pages/TripBuilderPage";
+import MaintenancePage from "@/pages/MaintenancePage";
+import DocumentsPage from "@/pages/DocumentsPage";
+import FuelReceiptsPage from "@/pages/FuelReceiptsPage";
 
 const Protected = ({ children, role }) => {
   const { user, loading } = useAuth();
@@ -68,6 +72,10 @@ function App() {
                 <Route path="/driver/messages" element={<Protected role="driver"><MessagesPage /></Protected>} />
                 <Route path="/driver/dispatch" element={<Protected role="driver"><DispatchPage /></Protected>} />
                 <Route path="/driver/settlements" element={<Protected role="driver"><SettlementsPage /></Protected>} />
+                <Route path="/driver/trip" element={<Protected role="driver"><TripBuilderPage /></Protected>} />
+                <Route path="/driver/maintenance" element={<Protected role="driver"><MaintenancePage /></Protected>} />
+                <Route path="/driver/documents" element={<Protected role="driver"><DocumentsPage /></Protected>} />
+                <Route path="/driver/fuel" element={<Protected role="driver"><FuelReceiptsPage /></Protected>} />
                 <Route path="/integrations" element={<IntegrationsPage />} />
                 <Route path="/integrations/:id" element={<IntegrationViewerPage />} />
                 <Route path="/settings" element={<SettingsPage />} />

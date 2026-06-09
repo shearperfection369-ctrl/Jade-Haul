@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { MapContainer, TileLayer, Marker, Polyline, CircleMarker, Tooltip } from "react-leaflet";
 import L from "leaflet";
 
@@ -10,7 +10,16 @@ L.Icon.Default.mergeOptions({
 });
 
 /** Dark HUD-style 3D-feeling GPS map (leaflet w/ Carto Dark Matter). */
-export default function GpsMap({ load, stations = [], height = "100%", tilt3d = false }) {
+export default function GpsMap({ load, stations = [], height = "100%", tilt3d = false, animateDriver = true }) {
+  const [progress, setProgress] = useState(0.35);
+  useEffect(() => {
+    if (!animateDriver) return;
+    const id = setInterval(() => {
+      setProgress((p) => (p + 0.0025) % 1);
+    }, 800);
+    return () => clearInterval(id);
+  }, [animateDriver]);
+
   if (!load) return null;
   const route = [
     [load.origin.lat, load.origin.lng],
@@ -21,6 +30,9 @@ export default function GpsMap({ load, stations = [], height = "100%", tilt3d = 
     (load.origin.lat + load.destination.lat) / 2,
     (load.origin.lng + load.destination.lng) / 2,
   ];
+  // Interpolate driver position along straight-line segments
+  const driverLat = load.origin.lat + (load.destination.lat - load.origin.lat) * progress;
+  const driverLng = load.origin.lng + (load.destination.lng - load.origin.lng) * progress;
 
   return (
     <div className={`relative w-full ${tilt3d ? "map-3d-tilt" : ""}`} style={{ height }} data-testid="gps-map">
@@ -72,6 +84,19 @@ export default function GpsMap({ load, stations = [], height = "100%", tilt3d = 
               </CircleMarker>
             );
           })}
+          {/* Animated driver position */}
+          <CircleMarker
+            center={[driverLat, driverLng]}
+            radius={11}
+            pathOptions={{ color: "#fff", fillColor: "#00FA9A", fillOpacity: 1, weight: 3 }}
+          >
+            <Tooltip permanent direction="top" offset={[0, -12]}>RIG-77 · {Math.round(progress * 100)}%</Tooltip>
+          </CircleMarker>
+          <CircleMarker
+            center={[driverLat, driverLng]}
+            radius={22}
+            pathOptions={{ color: "#00FA9A", fillOpacity: 0.08, weight: 1 }}
+          />
         </MapContainer>
       </div>
 

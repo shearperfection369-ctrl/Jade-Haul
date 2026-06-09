@@ -939,6 +939,17 @@ async def dispatch_ws(ws: WebSocket, token: str = ""):
 
 
 # ---------------------------------------------------------------------------
+# Phase 3 extensions (editable ELD, trips, maintenance, docs, fuel, geofence, TTS)
+# ---------------------------------------------------------------------------
+from routes.phase3 import make_router as _make_phase3_router  # noqa: E402
+from routes.tts import router as _tts_router  # noqa: E402
+
+_phase3_router = _make_phase3_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso)
+api.include_router(_phase3_router)
+api.include_router(_tts_router)
+
+
+# ---------------------------------------------------------------------------
 # Mount + CORS
 # ---------------------------------------------------------------------------
 app.include_router(api)

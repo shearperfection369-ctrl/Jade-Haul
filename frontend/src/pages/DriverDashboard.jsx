@@ -5,6 +5,7 @@ import PageHeader from "@/components/layout/PageHeader";
 import GpsMap from "@/components/GpsMap";
 import JadeOrb from "@/components/JadeOrb";
 import EldLogGrid from "@/components/EldLogGrid";
+import AiCompanionBanner from "@/components/AiCompanionBanner";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -44,6 +45,7 @@ export default function DriverDashboard() {
 
   return (
     <div className="space-y-5 pb-10">
+      <AiCompanionBanner />
       <PageHeader
         subtitle="Driver · Command Deck"
         title={`On the road · ${load?.origin?.name || ""} → ${load?.destination?.name || ""}`}
