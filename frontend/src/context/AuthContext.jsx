@@ -34,13 +34,20 @@ export const AuthProvider = ({ children }) => {
     return data.user;
   };
 
+  const signupAndLogin = async (payload) => {
+    const { data } = await api.post("/auth/signup", payload);
+    localStorage.setItem("jadeos.token", data.token);
+    setUser(data.user);
+    return data.user;
+  };
+
   const logout = () => {
     localStorage.removeItem("jadeos.token");
     setUser(null);
   };
 
   return (
-    <AuthCtx.Provider value={{ user, login, logout, loading }}>{children}</AuthCtx.Provider>
+    <AuthCtx.Provider value={{ user, login, signupAndLogin, logout, loading }}>{children}</AuthCtx.Provider>
   );
 };
 

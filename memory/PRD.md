@@ -85,3 +85,13 @@ Phase 3 adds: editable ELD logs, manual trip builder, maintenance ledger, docume
 
 ## Last working item (resolved)
 - P0 App Sluggishness / Excessive Re-renders — FIXED & VERIFIED (Iter 4). `useSafeFetch` (AbortController + alive ref), debounced AI Companion/geofence polling, and `React.memo` on Leaflet maps confirmed working under rapid navigation stress.
+
+## Face biometric login (Feb 2026)
+- **Engine**: `@vladmandic/face-api` (TensorFlow.js) running fully client-side. Models cached in `/app/frontend/public/models/` (tinyFaceDetector + faceLandmark68 + faceRecognition, ~13 MB total).
+- **Helpers**: `/app/frontend/src/lib/faceAuth.js` — model loader, descriptor extraction, EAR (eye-aspect-ratio) liveness, descriptor averaging, localStorage I/O, best-match search (threshold 0.5).
+- **Components**:
+  - `FaceCapture.jsx` — reusable circular webcam with permission state surfacing (idle/requesting/ready/denied/error) + Enable Camera CTA.
+  - `HoloOrb.jsx` — login orb refactored to expose `getVideoEl()` via ref and show graceful permission UI instead of silent OFFLINE.
+- **Signup flow** (`/signup`): 2-step — credentials (name/email/password/role + optional callsign/license) → face enrollment (blink-liveness challenge, captures 3 descriptors, averages them).
+- **Login flow**: existing email/password kept. New "Sign in with Face" button appears when any face is enrolled on this device.
+- **Backend**: `POST /api/auth/signup` added — bcrypt-hashed password, MongoDB `users` collection (unique-email index), back-compat with hardcoded DEMO_USERS. `/auth/login` + `current_user` now resolve from both sources.

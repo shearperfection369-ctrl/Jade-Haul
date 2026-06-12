@@ -20,6 +20,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Annotated, Any, Optional
 
+import bcrypt
 import jwt
 from bson import ObjectId
 from dotenv import load_dotenv
@@ -102,6 +103,40 @@ def make_token(user_email: str, role: str) -> str:
 bearer_scheme = HTTPBearer(auto_error=False)
 
 
+def hash_password(pw: str) -> str:
+    return bcrypt.hashpw(pw.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+
+
+def verify_password(pw: str, hashed: str) -> bool:
+    try:
+        return bcrypt.checkpw(pw.encode("utf-8"), hashed.encode("utf-8"))
+    except (ValueError, TypeError):
+        return False
+
+
+async def _lookup_user(email: str) -> Optional[dict]:
+    """Resolve a user from demo set or Mongo `users` collection."""
+    email = email.lower().strip()
+    if email in DEMO_USERS:
+        u = DEMO_USERS[email].copy()
+        u["email"] = email
+        return u
+    doc = await db.users.find_one({"email": email})
+    if doc is None:
+        return None
+    return {
+        "id": str(doc["_id"]),
+        "email": doc["email"],
+        "name": doc.get("name", ""),
+        "role": doc.get("role", "driver"),
+        "callsign": doc.get("callsign", ""),
+        "license": doc.get("license", ""),
+        "rating": doc.get("rating", 5.0),
+        "avatar": doc.get("avatar", ""),
+        "password_hash": doc.get("password_hash"),
+    }
+
+
 async def current_user(
     creds: Optional[HTTPAuthorizationCredentials] = Depends(bearer_scheme),
 ) -> dict:
@@ -112,10 +147,11 @@ async def current_user(
     except jwt.PyJWTError as exc:
         raise HTTPException(status_code=401, detail=f"Invalid token: {exc}") from exc
     email = decoded.get("sub")
-    if email not in DEMO_USERS:
+    user = await _lookup_user(email) if email else None
+    if user is None:
         raise HTTPException(status_code=401, detail="Unknown user")
-    user = DEMO_USERS[email].copy()
-    user["email"] = email
+    user.pop("password", None)
+    user.pop("password_hash", None)
     return user
 
 
@@ -125,6 +161,15 @@ async def current_user(
 class LoginRequest(BaseModel):
     email: str
     password: str
+
+
+class SignupRequest(BaseModel):
+    email: str
+    password: str
+    name: str
+    role: str  # "driver" | "broker"
+    callsign: Optional[str] = ""
+    license: Optional[str] = ""
 
 
 class DetentionStartRequest(BaseModel):
@@ -175,18 +220,74 @@ async def root():
 # ---------------- Auth ----------------
 @api.post("/auth/login")
 async def login(req: LoginRequest):
-    user = DEMO_USERS.get(req.email.lower().strip())
-    if not user or user["password"] != req.password:
+    email = req.email.lower().strip()
+    # Demo accounts: plain comparison kept for back-compat
+    if email in DEMO_USERS:
+        u = DEMO_USERS[email]
+        if u["password"] != req.password:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
+        token = make_token(email, u["role"])
+        safe = {k: v for k, v in u.items() if k != "password"}
+        safe["email"] = email
+        return {"token": token, "user": safe}
+    # DB-backed users (created via /auth/signup)
+    doc = await db.users.find_one({"email": email})
+    if not doc or not verify_password(req.password, doc.get("password_hash", "")):
         raise HTTPException(status_code=401, detail="Invalid credentials")
-    token = make_token(req.email.lower().strip(), user["role"])
-    safe = {k: v for k, v in user.items() if k != "password"}
-    safe["email"] = req.email.lower().strip()
+    token = make_token(email, doc.get("role", "driver"))
+    safe = {
+        "id": str(doc["_id"]),
+        "email": email,
+        "name": doc.get("name", ""),
+        "role": doc.get("role", "driver"),
+        "callsign": doc.get("callsign", ""),
+        "license": doc.get("license", ""),
+        "rating": doc.get("rating", 5.0),
+        "avatar": doc.get("avatar", ""),
+    }
+    return {"token": token, "user": safe}
+
+
+@api.post("/auth/signup")
+async def signup(req: SignupRequest):
+    email = req.email.lower().strip()
+    if not email or "@" not in email:
+        raise HTTPException(status_code=400, detail="Invalid email")
+    if len(req.password) < 6:
+        raise HTTPException(status_code=400, detail="Password must be at least 6 characters")
+    if req.role not in ("driver", "broker"):
+        raise HTTPException(status_code=400, detail="role must be 'driver' or 'broker'")
+    if email in DEMO_USERS or await db.users.find_one({"email": email}):
+        raise HTTPException(status_code=409, detail="Email already registered")
+    doc = {
+        "email": email,
+        "password_hash": hash_password(req.password),
+        "name": req.name.strip() or email.split("@")[0],
+        "role": req.role,
+        "callsign": (req.callsign or "").strip(),
+        "license": (req.license or "").strip(),
+        "rating": 5.0,
+        "avatar": "",
+        "created_at": utcnow_iso(),
+    }
+    result = await db.users.insert_one(doc)
+    token = make_token(email, req.role)
+    safe = {
+        "id": str(result.inserted_id),
+        "email": email,
+        "name": doc["name"],
+        "role": doc["role"],
+        "callsign": doc["callsign"],
+        "license": doc["license"],
+        "rating": 5.0,
+        "avatar": "",
+    }
     return {"token": token, "user": safe}
 
 
 @api.get("/auth/me")
 async def me(user: dict = Depends(current_user)):
-    return {k: v for k, v in user.items() if k != "password"}
+    return {k: v for k, v in user.items() if k not in ("password", "password_hash")}
 
 
 # ---------------- Driver: HOS ----------------
@@ -1022,6 +1123,14 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.on_event("startup")
+async def _startup():
+    try:
+        await db.users.create_index("email", unique=True)
+    except Exception as e:  # noqa: BLE001
+        logger.warning("users.email index init: %s", e)
 
 
 @app.on_event("shutdown")

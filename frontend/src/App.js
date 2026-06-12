@@ -7,6 +7,7 @@ import { ThemeProvider } from "@/context/ThemeContext";
 import { Toaster } from "@/components/ui/sonner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Login from "@/pages/Login";
+import Signup from "@/pages/Signup";
 import AppShell from "@/components/layout/AppShell";
 import DriverDashboard from "@/pages/DriverDashboard";
 import GpsPage from "@/pages/GpsPage";
@@ -56,6 +57,7 @@ function App() {
           <div className="App jade-grain">
             <Routes>
               <Route path="/login" element={<Login />} />
+              <Route path="/signup" element={<Signup />} />
               <Route path="/track/:loadId" element={<PublicTrackPage />} />
 
               <Route element={<Protected><AppShell /></Protected>}>
