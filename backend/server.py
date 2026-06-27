@@ -1105,10 +1105,13 @@ async def dispatch_ws(ws: WebSocket, token: str = ""):
 # ---------------------------------------------------------------------------
 from routes.phase3 import make_router as _make_phase3_router  # noqa: E402
 from routes.tts import router as _tts_router  # noqa: E402
+from routes.safety import make_router as _make_safety_router  # noqa: E402
 
 _phase3_router = _make_phase3_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso)
 api.include_router(_phase3_router)
 api.include_router(_tts_router)
+_safety_router = _make_safety_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso, emergent_llm_key=EMERGENT_LLM_KEY)
+api.include_router(_safety_router)
 
 
 # ---------------------------------------------------------------------------

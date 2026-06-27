@@ -33,6 +33,9 @@ import TripBuilderPage from "@/pages/TripBuilderPage";
 import MaintenancePage from "@/pages/MaintenancePage";
 import DocumentsPage from "@/pages/DocumentsPage";
 import FuelReceiptsPage from "@/pages/FuelReceiptsPage";
+import CabinEventsPage from "@/pages/CabinEventsPage";
+import SafetyAutomationsPage from "@/pages/SafetyAutomationsPage";
+import DriverCoachingPage from "@/pages/DriverCoachingPage";
 
 const Protected = ({ children, role }) => {
   const { user, loading } = useAuth();
@@ -78,6 +81,7 @@ function App() {
                 <Route path="/driver/maintenance" element={<Protected role="driver"><MaintenancePage /></Protected>} />
                 <Route path="/driver/documents" element={<Protected role="driver"><DocumentsPage /></Protected>} />
                 <Route path="/driver/fuel" element={<Protected role="driver"><FuelReceiptsPage /></Protected>} />
+                <Route path="/driver/coaching" element={<Protected role="driver"><DriverCoachingPage /></Protected>} />
                 <Route path="/integrations" element={<IntegrationsPage />} />
                 <Route path="/integrations/:id" element={<IntegrationViewerPage />} />
                 <Route path="/settings" element={<SettingsPage />} />
@@ -89,6 +93,8 @@ function App() {
                 <Route path="/broker/exceptions" element={<Protected role="broker"><BrokerExceptionsPage /></Protected>} />
                 <Route path="/broker/dispatch" element={<Protected role="broker"><DispatchPage /></Protected>} />
                 <Route path="/broker/settlements" element={<Protected role="broker"><SettlementsPage /></Protected>} />
+                <Route path="/broker/cabin-events" element={<Protected role="broker"><CabinEventsPage /></Protected>} />
+                <Route path="/broker/safety-automations" element={<Protected role="broker"><SafetyAutomationsPage /></Protected>} />
                 <Route path="/broker/jade" element={<JadeChatPage />} />
               </Route>
 

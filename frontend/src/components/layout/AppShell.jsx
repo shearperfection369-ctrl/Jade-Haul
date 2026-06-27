@@ -4,7 +4,7 @@ import {
   LayoutDashboard, Map, ClipboardList, Timer, ScanLine, Gauge, Mic,
   Activity, Truck, MessageSquare, Settings, LogOut, Briefcase,
   TrendingUp, AlertTriangle, Users, Plug, DollarSign, Radio,
-  Route as RouteIcon, Wrench, FolderArchive, Receipt
+  Route as RouteIcon, Wrench, FolderArchive, Receipt, Camera, Bot, GraduationCap
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -25,6 +25,7 @@ const driverNav = [
   { to: "/driver/weigh", icon: Gauge, label: "Weigh Bypass", testid: "nav-driver-weigh" },
   { to: "/driver/jade", icon: Mic, label: "JADE Voice", testid: "nav-driver-jade" },
   { to: "/driver/safety", icon: Activity, label: "Safety", testid: "nav-driver-safety" },
+  { to: "/driver/coaching", icon: GraduationCap, label: "Coaching", testid: "nav-driver-coaching", badge: "NEW" },
   { to: "/driver/loads", icon: Truck, label: "Load Board", testid: "nav-driver-loads" },
   { to: "/driver/messages", icon: MessageSquare, label: "Messages", testid: "nav-driver-messages" },
   { to: "/driver/dispatch", icon: Radio, label: "Live Dispatch", testid: "nav-driver-dispatch" },
@@ -36,6 +37,8 @@ const brokerNav = [
   { to: "/broker/quote", icon: TrendingUp, label: "Quote Optimizer", testid: "nav-broker-quote" },
   { to: "/broker/carriers", icon: Users, label: "Carrier Risk", testid: "nav-broker-carriers" },
   { to: "/broker/exceptions", icon: AlertTriangle, label: "Exceptions", testid: "nav-broker-exceptions" },
+  { to: "/broker/cabin-events", icon: Camera, label: "Cabin Events", testid: "nav-broker-cabin-events", badge: "LIVE" },
+  { to: "/broker/safety-automations", icon: Bot, label: "Safety Automations", testid: "nav-broker-safety-auto", badge: "NEW" },
   { to: "/broker/dispatch", icon: Radio, label: "Live Dispatch", testid: "nav-broker-dispatch" },
   { to: "/broker/settlements", icon: DollarSign, label: "Payouts", testid: "nav-broker-settlements" },
   { to: "/broker/jade", icon: Mic, label: "JADE", testid: "nav-broker-jade" },
@@ -55,7 +58,7 @@ export default function AppShell() {
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
-          {items.map(({ to, icon: Icon, label, testid }) => (
+          {items.map(({ to, icon: Icon, label, testid, badge }) => (
             <NavLink
               key={to}
               to={to}
@@ -71,6 +74,10 @@ export default function AppShell() {
             >
               <Icon className="w-4 h-4 shrink-0" strokeWidth={1.6} />
               <span className="truncate">{label}</span>
+              {badge && (
+                <span className="ml-auto mono text-[9px] px-1.5 py-0.5 rounded"
+                  style={{ background: "var(--lime)", color: "#0a0f0e" }}>{badge}</span>
+              )}
             </NavLink>
           ))}
 
