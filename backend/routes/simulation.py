@@ -429,6 +429,105 @@ def make_router(db, current_user, utcnow_iso, jwt_secret: str, jwt_alg: str, mak
 
         return {"kpis": kpis, "drivers": drivers}
 
+    @router.get("/broker/watch/{driver_email}")
+    async def watch_driver_detail(driver_email: str, user: dict = Depends(current_user)):
+        """Full detail for one driver — workflow, last events, active alerts, sim state."""
+        if user["role"] != "broker":
+            raise HTTPException(403, "Broker only")
+        email = driver_email.lower().strip()
+
+        sim = await db.simulation_state.find_one({"email": email}, sort=[("started_at", -1)])
+        if sim:
+            sim.pop("_id", None)
+
+        # user record for avatar
+        user_doc = await db.users.find_one({"email": email})
+        avatar = user_doc.get("avatar", "") if user_doc else ""
+
+        events = await db.cabin_events.find({"driver_email": email}).sort("occurred_at", -1).limit(10).to_list(length=10)
+        for e in events:
+            e.pop("_id", None)
+
+        alerts = await db.driver_alerts.find({"driver_email": email, "ack": False}).sort("created_at", -1).limit(10).to_list(length=10)
+        for a in alerts:
+            a.pop("_id", None)
+
+        workflow = await db.driver_workflow.find({"driver_email": email}).sort("order", 1).to_list(length=20)
+        for w in workflow:
+            w.pop("_id", None)
+        wf_completed = sum(1 for w in workflow if w.get("status") == "completed")
+
+        # Recent broker→driver pings (from driver_nudges by this broker)
+        recent_pings = await db.driver_nudges.find({"driver_email": email, "created_by": {"$exists": True}}).sort("created_at", -1).limit(6).to_list(length=6)
+        for p in recent_pings:
+            p.pop("_id", None)
+
+        return {
+            "driver": {
+                "email": email,
+                "name": (user_doc.get("name") if user_doc else None) or (sim.get("name") if sim else email),
+                "avatar": avatar,
+                "callsign": user_doc.get("callsign", "") if user_doc else "",
+            },
+            "sim": sim,
+            "events": events,
+            "alerts": alerts,
+            "workflow": {"steps": workflow, "completed": wf_completed, "total": len(workflow)},
+            "recent_pings": recent_pings,
+        }
+
+    @router.post("/broker/ping-driver")
+    async def ping_driver(payload: dict, user: dict = Depends(current_user)):
+        """Broker sends a message + optional TTS voice nudge to a driver's
+        JADE companion inbox. Creates two driver_nudges docs (message + voice)."""
+        if user["role"] != "broker":
+            raise HTTPException(403, "Broker only")
+        driver_email = (payload.get("driver_email") or "").lower().strip()
+        message = (payload.get("message") or "").strip()
+        with_voice = bool(payload.get("with_voice", True))
+        if not driver_email or not message:
+            raise HTTPException(400, "driver_email and message are required")
+
+        created = []
+        # Message
+        msg_doc = {
+            "id": str(uuid.uuid4()),
+            "driver_email": driver_email,
+            "kind": "message",
+            "title": f"Broker · {user.get('name','Dispatch')}",
+            "text": message,
+            "event_id": None,
+            "rule_id": None,
+            "ack": False,
+            "created_by": user["email"],
+            "created_at": utcnow_iso(),
+        }
+        await db.driver_nudges.insert_one(msg_doc)
+        msg_doc.pop("_id", None)
+        created.append(msg_doc)
+
+        if with_voice:
+            voice_doc = {**msg_doc, "id": str(uuid.uuid4()), "kind": "voice", "title": "Broker · voice ping"}
+            await db.driver_nudges.insert_one(voice_doc)
+            voice_doc.pop("_id", None)
+            created.append(voice_doc)
+
+        # Also inject a dispatch alert so it pops up in the driver's popup surface
+        alert_doc = {
+            "id": str(uuid.uuid4()),
+            "driver_email": driver_email,
+            "kind": "dispatch",
+            "severity": "info",
+            "title": f"Message from {user.get('name','Dispatch')}",
+            "body": message,
+            "ack": False,
+            "created_by": user["email"],
+            "created_at": utcnow_iso(),
+        }
+        await db.driver_alerts.insert_one(alert_doc)
+
+        return {"created": created, "alert_id": alert_doc["id"]}
+
     @router.get("/simulation/recap")
     async def get_recap(user: dict = Depends(current_user)):
         """Aggregate stats + Claude-drafted debrief for the driver's latest sim run."""

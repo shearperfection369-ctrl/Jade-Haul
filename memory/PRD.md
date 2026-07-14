@@ -83,6 +83,41 @@ Phase 3 adds: editable ELD logs, manual trip builder, maintenance ledger, docume
 - Iter 3 (re-run, Phase 3) — Backend 46/46, frontend ~95% (2 minor testid gaps, fixed post-test).
 - Iter 4 (Feb 2026, wrap-up) — Backend 56/56 pytest (10 new phase4 wrap tests added in `/app/backend/tests/test_phase4_verify.py`). Frontend: all P0 performance fixes verified — rapid switching across 9 driver tabs clean, window blur/focus cycles trigger no excess refetches, useSafeFetch correctly aborts in-flight `/api/tts/speak` on unmount. JADE chat + Nova TTS + POI overlays + Voice Trip Wizard end-to-end green. 0 console errors across full driver+broker walkthrough.
 
+## Broker Watch · Fleet Control Tower (Feb 2026)
+- `/broker/watch` — CARTO dark map + KPI strip + fleet ticker + click-through
+- `GET /api/broker/watch` — aggregated fleet snapshot (KPIs + drivers)
+- `GET /api/broker/watch/{email}` — full driver detail (workflow, events, alerts, recent pings)
+- `POST /api/broker/ping-driver` — broker → driver two-way messaging with optional TTS voice nudge
+- `DriverDetailPanel.jsx` — slide-in from right with workflow / cabin events (thumbnails) / open alerts / ping composer with 4 quick templates + voice toggle
+- Live poll every 6s; recent-pings collapsible; scrim dismiss; spring-in animation
+
+## Sim Recap (Feb 2026)
+- `GET /api/simulation/recap` — KPIs + Claude 4.5 debrief (route summary / what went well / sharpen next / send-off)
+- `SimRecap.jsx` — full-screen fade-in modal, trophy hero, 6 KPI tiles, TTS narration, Share, once-per-sim gating via localStorage
+
+## Sample Trucker Simulation (Feb 2026)
+- `POST /api/simulation/start` — creates a fresh demo user + trip, kicks off background sim loop
+- Fort Worth → Phoenix route, 1050 mi over ~90 sec real time, cabin events + alerts + workflow auto-complete
+- `SimulationHUD.jsx` top-center pill with progress + Stop
+- Login page "Try a sample trucker simulation" CTA
+
+## Companion + Alerts + Workflow (Feb 2026)
+- `JadeCompanion.jsx` — global orb w/ real-time voice (WebSpeech STT → Claude → Nova TTS), ambient small-talk after 5 min idle, alert popup renderer
+- `JadeAmbientGlow.jsx` — screen-edge illumination + scan lines while JADE is thinking
+- `WorkflowPage.jsx` — AI-orchestrated load checklist (10 canonical steps)
+- Ambient simulator: 1 alert every 180-300s, cabin events every 35-55s
+
+## Themes (Feb 2026)
+- 15 palettes: Calafia, HUD Cyan, Forest Calm, Sunset Warm, Arctic, Lavender, Mocha, Solar Light, Orisei Brand, Neon Tokyo, Matrix Green, Amber CRT, Midnight Steel, Rose Quartz, Carbon Fiber
+- `ThemeSwitcher.jsx` popover in sidebar; instantly repaints entire app via `data-theme`
+- Ambient glow, alerts, HUD all follow active palette
+
+## Face Login Reliability (Feb 2026)
+- Models preloaded on app boot (`preloadFaceModels` in `App.js`)
+- 5s + 3s auto-retry, 180ms poll, fast-accept threshold 0.42, general threshold 0.55
+- Live confidence bar under holo-orb during scan
+- Enrollment upgraded to 5 samples
+
 ## Last working item (resolved)
 - P0 App Sluggishness / Excessive Re-renders — FIXED & VERIFIED (Iter 4). `useSafeFetch` (AbortController + alive ref), debounced AI Companion/geofence polling, and `React.memo` on Leaflet maps confirmed working under rapid navigation stress.
 

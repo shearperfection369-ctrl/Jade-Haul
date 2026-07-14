@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { api } from "@/lib/api";
 import "leaflet/dist/leaflet.css";
+import DriverDetailPanel from "@/components/DriverDetailPanel";
 
 const POLL_MS = 5000;
 
@@ -28,6 +29,7 @@ export default function BrokerWatchPage() {
   const [data, setData] = useState({ kpis: null, drivers: [] });
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
+  const [openEmail, setOpenEmail] = useState(null);
 
   const refresh = useCallback(async () => {
     try {
@@ -116,7 +118,7 @@ export default function BrokerWatchPage() {
                     fillOpacity: 0.75,
                     weight: isSel ? 3 : 2,
                   }}
-                  eventHandlers={{ click: () => setSelected(d) }}
+                  eventHandlers={{ click: () => { setSelected(d); setOpenEmail(d.email); } }}
                 >
                   <Popup>
                     <div className="text-xs">
@@ -148,7 +150,7 @@ export default function BrokerWatchPage() {
               return (
                 <button
                   key={d.sim_id || d.email}
-                  onClick={() => setSelected(d)}
+                  onClick={() => { setSelected(d); setOpenEmail(d.email); }}
                   className={`w-full text-left flex items-start gap-3 px-2 py-3 transition-colors ${sel ? "bg-primary/10" : "hover:bg-card/60"}`}
                   data-testid={`watch-row-${d.email}`}
                 >
@@ -179,6 +181,8 @@ export default function BrokerWatchPage() {
           </div>
         </Card>
       </div>
+
+      <DriverDetailPanel email={openEmail} onClose={() => setOpenEmail(null)} />
     </div>
   );
 }
