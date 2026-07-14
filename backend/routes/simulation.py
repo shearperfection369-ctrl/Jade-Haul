@@ -352,6 +352,83 @@ def make_router(db, current_user, utcnow_iso, jwt_secret: str, jwt_alg: str, mak
         )
         return {"stopped": r.modified_count}
 
+    @router.get("/broker/watch")
+    async def broker_watch(user: dict = Depends(current_user)):
+        """Live fleet dashboard for the broker. Returns every active driver
+        (running sim or in-transit trip) with position + live metrics."""
+        if user["role"] != "broker":
+            raise HTTPException(403, "Broker only")
+
+        sims = await db.simulation_state.find(
+            {"status": {"$in": ["running", "delivered"]}},
+        ).sort("started_at", -1).limit(60).to_list(length=60)
+
+        now = datetime.now(timezone.utc)
+        watch_since = (now - timedelta(minutes=5)).isoformat()
+
+        drivers = []
+        for s in sims:
+            email = s.get("email")
+            if not email:
+                continue
+            # Live rolling metrics
+            recent_events = await db.cabin_events.count_documents({
+                "driver_email": email,
+                "occurred_at": {"$gte": watch_since},
+            })
+            recent_alerts = await db.driver_alerts.count_documents({
+                "driver_email": email,
+                "created_at": {"$gte": watch_since},
+                "ack": False,
+            })
+            events_total = await db.cabin_events.count_documents({"driver_email": email})
+            flagged = await db.cabin_events.count_documents({"driver_email": email, "status": "flagged_for_review"})
+            wf = await db.driver_workflow.find({"driver_email": email}).to_list(length=20)
+            wf_done = sum(1 for w in wf if w.get("status") == "completed")
+
+            # HOS efficiency approximation (same model as recap)
+            lost_min = 2 * flagged + 3 * recent_alerts
+            drive_min = max(30, (s.get("total_mi", 1050) / 60) * 60)
+            hos_eff = round(100 * drive_min / (drive_min + lost_min), 1)
+
+            drivers.append({
+                "email": email,
+                "name": s.get("name"),
+                "sim_id": s.get("id"),
+                "status": s.get("status"),
+                "origin": "Fort Worth, TX",
+                "destination": "Phoenix, AZ",
+                "current_city": s.get("city"),
+                "current_state": s.get("state"),
+                "lat": s.get("lat"),
+                "lng": s.get("lng"),
+                "miles": round(s.get("miles", 0)),
+                "total_mi": s.get("total_mi", 1050),
+                "progress": round(s.get("progress", 0), 3),
+                "events_total": events_total,
+                "events_recent": recent_events,
+                "events_flagged": flagged,
+                "alerts_open": recent_alerts,
+                "workflow_done": wf_done,
+                "workflow_total": len(wf),
+                "hos_efficiency": hos_eff,
+                "started_at": s.get("started_at"),
+                "updated_at": s.get("updated_at") or s.get("started_at"),
+            })
+
+        # Aggregate KPI strip
+        active = [d for d in drivers if d["status"] == "running"]
+        kpis = {
+            "active_loads": len(active),
+            "total_watched": len(drivers),
+            "events_5m": sum(d["events_recent"] for d in drivers),
+            "alerts_open": sum(d["alerts_open"] for d in drivers),
+            "avg_hos": round(sum(d["hos_efficiency"] for d in drivers) / max(1, len(drivers)), 1),
+            "avg_progress": round(sum(d["progress"] for d in active) / max(1, len(active)) * 100, 1),
+        }
+
+        return {"kpis": kpis, "drivers": drivers}
+
     @router.get("/simulation/recap")
     async def get_recap(user: dict = Depends(current_user)):
         """Aggregate stats + Claude-drafted debrief for the driver's latest sim run."""

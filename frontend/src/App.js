@@ -10,6 +10,7 @@ import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import OnboardingWizard from "@/pages/OnboardingWizard";
 import WorkflowPage from "@/pages/WorkflowPage";
+import BrokerWatchPage from "@/pages/BrokerWatchPage";
 import { preloadFaceModels } from "@/lib/faceAuth";
 
 // Warm up the face-api models the moment the app mounts so login is instant.
@@ -102,6 +103,7 @@ function App() {
                 <Route path="/broker/dispatch" element={<Protected role="broker"><DispatchPage /></Protected>} />
                 <Route path="/broker/settlements" element={<Protected role="broker"><SettlementsPage /></Protected>} />
                 <Route path="/broker/cabin-events" element={<Protected role="broker"><CabinEventsPage /></Protected>} />
+                <Route path="/broker/watch" element={<Protected role="broker"><BrokerWatchPage /></Protected>} />
                 <Route path="/broker/safety-automations" element={<Protected role="broker"><SafetyAutomationsPage /></Protected>} />
                 <Route path="/broker/jade" element={<JadeChatPage />} />
               </Route>

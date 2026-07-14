@@ -40,6 +40,7 @@ const driverNav = [
 
 const brokerNav = [
   { to: "/broker", icon: Briefcase, label: "Command", testid: "nav-broker-dashboard" },
+  { to: "/broker/watch", icon: Radio, label: "Fleet Watch", testid: "nav-broker-watch", badge: "LIVE" },
   { to: "/broker/quote", icon: TrendingUp, label: "Quote Optimizer", testid: "nav-broker-quote" },
   { to: "/broker/carriers", icon: Users, label: "Carrier Risk", testid: "nav-broker-carriers" },
   { to: "/broker/exceptions", icon: AlertTriangle, label: "Exceptions", testid: "nav-broker-exceptions" },
