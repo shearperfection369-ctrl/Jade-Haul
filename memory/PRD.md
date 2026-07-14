@@ -150,3 +150,18 @@ Phase 3 adds: editable ELD logs, manual trip builder, maintenance ledger, docume
 - **JADE voice briefing**: `POST /api/shipments/briefing` — checks driver's shipment count for the current UTC day; first-of-day returns a Claude-Sonnet-4.5-generated 3-4-sentence flight-deck briefing (driver name + broker + origin→destination + miles + rpm + reefer temp + hazmat, ends with "Say 'start trip' when you're rolling"); subsequent scans return a concise chime ("BOL X locked in. Origin to Destination, N miles. Ready to roll?"). Graceful text-only fallback if Claude fails.
 - Frontend `BillScannerPage.jsx` — after every successful `/shipments/scan-bol`, fires `/shipments/briefing` and pipes text through the existing `speak(text)` helper (Nova TTS via `/api/tts/speak`). Best-effort — silent failure if the browser blocks autoplay.
 
+
+## Alert Popup Rework — Subtle Non-Blocking Toasts (Feb 2026)
+- **User complaint**: popups too frequent, kept repeating endlessly, blacked out the whole screen.
+- **Root cause**: (a) `_ambient_alerts()` in `routes/companion.py` was a standalone background loop inserting a new mock alert every 5-8 minutes forever; (b) `AlertPopup` in `JadeCompanion.jsx` rendered as a `fixed inset-0 z-50 bg-background/70 backdrop-blur-sm` fullscreen modal; (c) `dismissAlert` didn't ack the server, so unack'd alerts kept coming back after every 25s poll and after page reloads.
+- **Fix**:
+  - Backend `_ambient_alerts()` is now env-gated: only runs when `ALERT_SIMULATOR=1`. Default is OFF. Log confirms `Ambient alert simulator OFF (set ALERT_SIMULATOR=1 to enable)`.
+  - Legacy simulator-created unack'd alerts one-time auto-acked (12 records) so users start clean.
+  - `AlertPopup` rebuilt as a subtle **top-right corner toast** — 360px card, no backdrop, no full-screen overlay, `pointer-events` restricted to the card. Dashboard remains fully interactive underneath.
+  - Auto-dismiss timer (12s) for `info`/`warning` severities with a subtle countdown strip. `critical` alerts do NOT auto-dismiss — require explicit user Ack.
+  - Both the X close button and the Ack button PATCH `/driver/alerts/{id}/ack` server-side. Dismissed alerts never return on next poll or after page reload.
+  - Poll interval raised from 25s → 60s.
+  - Auto-voice suppressed for `info` severity (only warning/critical trigger Nova TTS automatically; user can hit Replay).
+- Sim-driven alerts still flow (inserted only while a simulation run is active). Real broker/system-posted alerts flow via `POST /api/driver/alerts`.
+- Verified end-to-end via `testing_agent_v3_fork` iteration_6: 5/5 scenarios PASS (no ambient popup during 90s idle, info toast top-right no backdrop auto-dismiss at 13s, dismiss acks server-side & no reappear after reload, critical stays until acked, BOL scanner regression clean).
+
