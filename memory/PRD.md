@@ -143,3 +143,10 @@ Phase 3 adds: editable ELD logs, manual trip builder, maintenance ledger, docume
   - `DriverDashboard.jsx` — new "Scan BOL to start your day" CTA when no scanned shipment is active.
 - Endpoints tested end-to-end via curl: scan→activate→start→pause→resume→end all succeed; `/driver/active_load` correctly reflects DB state.
 
+
+## Nominatim Geocoding + JADE Voice Briefing (Feb 2026)
+- **Geocoding**: `_nominatim_geocode(query)` + `_resolve_coords(...)` in `server.py`. Free OpenStreetMap Nominatim, no API key. Tries full address first, falls back to city+state+zip, then city+state, then GPT-provided lat/lng. Every query cached in `db.geocode_cache`. Uses `httpx.AsyncClient` (added to `requirements.txt`), respects Nominatim policy with `User-Agent: JadeHaul/1.0 (jadeos-bol-scan)`.
+- `_build_shipment_from_parse` now async — resolves real OSM lat/lng for origin + destination on every BOL scan. Verified: Springfield IL, Ravenswood WV, Metropolis IL, American Fork UT all correctly geocoded.
+- **JADE voice briefing**: `POST /api/shipments/briefing` — checks driver's shipment count for the current UTC day; first-of-day returns a Claude-Sonnet-4.5-generated 3-4-sentence flight-deck briefing (driver name + broker + origin→destination + miles + rpm + reefer temp + hazmat, ends with "Say 'start trip' when you're rolling"); subsequent scans return a concise chime ("BOL X locked in. Origin to Destination, N miles. Ready to roll?"). Graceful text-only fallback if Claude fails.
+- Frontend `BillScannerPage.jsx` — after every successful `/shipments/scan-bol`, fires `/shipments/briefing` and pipes text through the existing `speak(text)` helper (Nova TTS via `/api/tts/speak`). Best-effort — silent failure if the browser blocks autoplay.
+

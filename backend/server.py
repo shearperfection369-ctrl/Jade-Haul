@@ -957,13 +957,81 @@ def _fmt_place(city, state):
     return city or state or ""
 
 
-def _build_shipment_from_parse(parsed: dict, driver: dict) -> dict:
+# ---- Nominatim (OpenStreetMap) geocoding — free, no API key ----
+async def _nominatim_geocode(query: str) -> Optional[tuple[float, float]]:
+    """Resolve a free-form address to (lat, lng) using OpenStreetMap Nominatim.
+    Cached in db.geocode_cache. Returns None on any failure."""
+    q = (query or "").strip()
+    if not q:
+        return None
+    cached = await db.geocode_cache.find_one({"query": q.lower()})
+    if cached:
+        if cached.get("lat") is None:
+            return None
+        return (float(cached["lat"]), float(cached["lng"]))
+    try:
+        import httpx
+        async with httpx.AsyncClient(timeout=6.0) as cli:
+            r = await cli.get(
+                "https://nominatim.openstreetmap.org/search",
+                params={"q": q, "format": "json", "limit": 1, "addressdetails": 0},
+                headers={"User-Agent": "JadeHaul/1.0 (jadeos-bol-scan)"},
+            )
+            r.raise_for_status()
+            items = r.json()
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("nominatim geocode failed for '%s': %s", q, exc)
+        await db.geocode_cache.insert_one({"query": q.lower(), "lat": None, "lng": None,
+                                           "error": str(exc), "ts": utcnow_iso()})
+        return None
+
+    if not items:
+        await db.geocode_cache.insert_one({"query": q.lower(), "lat": None, "lng": None,
+                                           "ts": utcnow_iso()})
+        return None
+    lat, lng = float(items[0]["lat"]), float(items[0]["lon"])
+    await db.geocode_cache.insert_one({"query": q.lower(), "lat": lat, "lng": lng,
+                                       "display_name": items[0].get("display_name"),
+                                       "ts": utcnow_iso()})
+    return (lat, lng)
+
+
+async def _resolve_coords(address: Optional[str], city: Optional[str],
+                          state: Optional[str], zip_code: Optional[str],
+                          fallback_lat: Optional[float], fallback_lng: Optional[float]) -> tuple[Optional[float], Optional[float]]:
+    """Try Nominatim on full address, then city+state+zip, then city+state.
+    Falls back to the AI-provided lat/lng if all lookups fail."""
+    tries = []
+    if address and (city or state):
+        tries.append(", ".join([p for p in [address, city, state, zip_code] if p]))
+    if city and state:
+        tries.append(f"{city}, {state}, USA")
+    elif city:
+        tries.append(f"{city}, USA")
+    for q in tries:
+        hit = await _nominatim_geocode(q)
+        if hit:
+            return hit
+    if fallback_lat is not None and fallback_lng is not None:
+        return (float(fallback_lat), float(fallback_lng))
+    return (None, None)
+
+
+async def _build_shipment_from_parse(parsed: dict, driver: dict) -> dict:
     origin_city = parsed.get("shipper_city")
     origin_state = parsed.get("shipper_state")
     dest_city = parsed.get("consignee_city")
     dest_state = parsed.get("consignee_state")
-    o_lat, o_lng = parsed.get("origin_lat"), parsed.get("origin_lng")
-    d_lat, d_lng = parsed.get("destination_lat"), parsed.get("destination_lng")
+
+    # Resolve real coords via Nominatim (OSM) — falls back to GPT-provided lat/lng.
+    o_lat, o_lng = await _resolve_coords(
+        parsed.get("shipper_address"), origin_city, origin_state, parsed.get("shipper_zip"),
+        parsed.get("origin_lat"), parsed.get("origin_lng"),
+    )
+    d_lat, d_lng = await _resolve_coords(
+        parsed.get("consignee_address"), dest_city, dest_state, parsed.get("consignee_zip"),
+        parsed.get("destination_lat"), parsed.get("destination_lng"),
+    )
     miles = _approx_miles(o_lat, o_lng, d_lat, d_lng)
 
     # Compose a load-id from BOL / PRO / load_number when possible
@@ -1124,7 +1192,7 @@ async def scan_bol(req: BolScanRequest, user: dict = Depends(current_user)):
             "confidence": 0.62,
         }
 
-    shipment = _build_shipment_from_parse(parsed, user)
+    shipment = await _build_shipment_from_parse(parsed, user)
     if used_fallback:
         shipment["confidence"] = 0.55
         shipment["fallback"] = True
@@ -1348,6 +1416,95 @@ async def trip_end(req: TripActionRequest, user: dict = Depends(current_user)):
     doc.setdefault("trip_events", []).append(event)
     doc.pop("_id", None)
     return doc
+
+
+# ---------------- JADE voice briefing (post-BOL prompt) ----------------
+class BriefingRequest(BaseModel):
+    shipment_id: str
+
+
+@api.post("/shipments/briefing")
+async def shipment_briefing(req: BriefingRequest, user: dict = Depends(current_user)):
+    """After a BOL scan, return a spoken briefing for JADE.
+    - First scan of the calendar day for this driver → full Claude-generated briefing.
+    - Any subsequent scan → concise chime.
+    Frontend calls the existing /api/tts/speak with the returned text."""
+    doc = await db.shipments.find_one({"id": req.shipment_id, "driver_id": user["id"]})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+
+    today = datetime.now(timezone.utc).date().isoformat()
+    day_start = f"{today}T00:00:00+00:00"
+    prior_count = await db.shipments.count_documents({
+        "driver_id": user["id"],
+        "created_at": {"$gte": day_start, "$lt": doc.get("created_at", utcnow_iso())},
+    })
+    is_first_of_day = prior_count == 0
+
+    first_name = (user.get("name") or "Driver").split()[0]
+    origin = doc.get("origin", {}).get("name") or "origin"
+    dest = doc.get("destination", {}).get("name") or "destination"
+    miles = doc.get("miles_total")
+    rpm = doc.get("rate_per_mile")
+    rate = doc.get("rate_usd")
+    broker = doc.get("broker") or ""
+    bol = doc.get("bol_number") or doc.get("load_id") or ""
+    hazmat = doc.get("hazmat")
+    temp = doc.get("temperature_f")
+
+    if not is_first_of_day:
+        text = f"BOL {bol} locked in. {origin} to {dest}, {miles or '—'} miles. Ready to roll?"
+        return {"text": text, "kind": "quick", "is_first_of_day": False}
+
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
+        facts = "\n".join([f"- {k}: {v}" for k, v in {
+            "driver_first_name": first_name,
+            "broker": broker,
+            "bol_number": bol,
+            "origin": origin,
+            "destination": dest,
+            "miles": miles,
+            "rate_usd": rate,
+            "rate_per_mile": rpm,
+            "commodity": doc.get("commodity"),
+            "weight_lbs": doc.get("weight_lbs"),
+            "hazmat": hazmat,
+            "reefer_temp_f": temp,
+            "pickup_window": " ".join(filter(None, [doc.get("pickup_date"), doc.get("pickup_time_window")])),
+            "delivery_window": " ".join(filter(None, [doc.get("delivery_date"), doc.get("delivery_time_window")])),
+        }.items() if v not in (None, "", 0)])
+
+        prompt = (
+            "Deliver a spoken JADE briefing for a truck driver who just scanned their first BOL of the day. "
+            "Format for text-to-speech (Nova voice): warm, confident, flight-deck cadence, 3 to 4 short sentences. "
+            "Use the driver's first name. Say the broker, the origin-to-destination, miles and rate-per-mile. "
+            "If reefer temperature is present, mention it. If hazmat, note it clearly. "
+            "End with the exact phrase: \"Say 'start trip' when you're rolling.\" "
+            "No greetings like 'hey there', no filler, no markdown, no emoji. Just the spoken lines.\n\n"
+            f"Facts:\n{facts}"
+        )
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"briefing-{req.shipment_id}",
+            system_message="You are JADE, an in-cab AI co-pilot. Speak like a calm, professional flight-deck officer.",
+        ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+        result = await chat.send_message(UserMessage(text=prompt))
+        text = result if isinstance(result, str) else (getattr(result, "text", None) or str(result))
+        text = (text or "").strip().strip('"')
+        if not text:
+            raise RuntimeError("empty briefing")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("briefing generation fell back: %s", exc)
+        parts = [f"{first_name}, {broker or 'your broker'} to {dest}, {miles or '—'} miles at ${rpm or '—'} per mile."]
+        if temp is not None:
+            parts.append(f"Reefer set at {temp} degrees.")
+        if hazmat:
+            parts.append("Hazmat load — keep placards visible.")
+        parts.append("Say 'start trip' when you're rolling.")
+        text = " ".join(parts)
+
+    return {"text": text, "kind": "full", "is_first_of_day": True}
 
 
 # ---------------------------------------------------------------------------

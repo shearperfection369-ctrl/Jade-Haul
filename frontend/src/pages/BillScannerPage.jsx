@@ -14,6 +14,7 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 import TripControls from "@/components/TripControls";
+import { speak } from "@/lib/tts";
 
 /* -------- helpers -------- */
 const Field = ({ k, v, highlight, mono, icon: Icon }) => (
@@ -77,6 +78,11 @@ export default function BillScannerPage() {
       if (autoActivate) {
         toast.success("Load activated — start your trip when ready");
       }
+      // JADE post-scan voice prompt: quick chime OR full first-of-day briefing.
+      try {
+        const { data: brief } = await api.post("/shipments/briefing", { shipment_id: data.shipment.id });
+        if (brief?.text) speak(brief.text);
+      } catch (_) { /* voice is best-effort */ }
     } catch (e) {
       toast.error("Scan failed — try again");
     } finally {
