@@ -10,7 +10,8 @@ import { toast } from "sonner";
 
 // How long the driver must be idle before JADE offers a small-talk opener.
 const AMBIENT_IDLE_MS = 5 * 60 * 1000;
-const ALERT_POLL_MS = 25 * 1000;
+const ALERT_POLL_MS = 60 * 1000;         // 60s — alerts are only real events now, no need to poll aggressively
+const ALERT_AUTO_DISMISS_MS = 12 * 1000; // subtle toast auto-fades after 12s
 
 // Web Speech API — SpeechRecognition is browser-native.
 function getRecognition() {
@@ -104,21 +105,23 @@ export default function JadeCompanion() {
   }, [user]);
 
   // Drain queue → surface next alert. Enforce a 6-second cooldown between
-  // popups so acking one doesn't immediately fire another (was the "popup
-  // never goes away" bug).
+  // popups so acking one doesn't immediately fire another. Auto-voice only
+  // fires for warning/critical severities — info alerts stay silent and
+  // subtle so they don't interrupt the driver.
   const cooldownRef = useRef(0);
   useEffect(() => {
     if (alert || alertQueue.length === 0) return;
     const wait = Math.max(0, cooldownRef.current - Date.now());
     const timer = setTimeout(() => {
-      // Re-check under the timeout — user may have opened another popup meanwhile.
       setAlertQueue((q) => {
         if (!q.length) return q;
         const [next, ...rest] = q;
         setAlert(next);
-        (async () => {
-          try { await speakSafely(`${next.title}. ${next.body}`); } catch { /* silent */ }
-        })();
+        if (next.severity === "warning" || next.severity === "critical") {
+          (async () => {
+            try { await speakSafely(`${next.title}. ${next.body}`); } catch { /* silent */ }
+          })();
+        }
         return rest;
       });
     }, wait);
@@ -211,11 +214,14 @@ export default function JadeCompanion() {
     speakingRef.current = false;
   };
 
-  // Local dismiss — closes the popup without server ack. Server will still
-  // return the alert as unack'd on next poll, but seenAlertIds ensures it
-  // won't re-pop; user can revisit via a future Alerts page.
+  // Dismiss now also acks server-side, so the alert never returns on next
+  // poll or after a page refresh. This eliminates the "popup keeps coming
+  // back" complaint. Alerts are viewable in the future Alerts page.
   const dismissAlert = () => {
     if (!alert) return;
+    const id = alert.id;
+    // fire-and-forget ack so it disappears from server-side unack queue too
+    api.patch(`/driver/alerts/${id}/ack`).catch(() => { /* silent */ });
     cooldownRef.current = Date.now() + 6000;
     setAlert(null);
     stopSpeak();
@@ -374,68 +380,77 @@ export default function JadeCompanion() {
 function AlertPopup({ alert, queueLen, onAck, onDismiss, onReplay }) {
   const style = SEV_STYLE[alert.severity] || SEV_STYLE.info;
   const KindIcon = KIND_ICON[alert.kind] || Radio;
+
+  // Auto-dismiss timer with a subtle countdown bar (critical alerts do NOT
+  // auto-dismiss — they require explicit user action).
+  const [remaining, setRemaining] = useState(ALERT_AUTO_DISMISS_MS);
+  useEffect(() => {
+    if (alert.severity === "critical") return;
+    const start = Date.now();
+    const id = setInterval(() => {
+      const left = ALERT_AUTO_DISMISS_MS - (Date.now() - start);
+      if (left <= 0) {
+        clearInterval(id);
+        onDismiss();
+      } else {
+        setRemaining(left);
+      }
+    }, 100);
+    return () => clearInterval(id);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alert.id]);
+
+  const barPct = alert.severity === "critical" ? 100 : (remaining / ALERT_AUTO_DISMISS_MS) * 100;
+
   return (
     <motion.div
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/70 backdrop-blur-sm"
+      initial={{ opacity: 0, x: 40, y: 0 }}
+      animate={{ opacity: 1, x: 0, y: 0 }}
+      exit={{ opacity: 0, x: 40 }}
+      transition={{ type: "spring", damping: 24, stiffness: 260 }}
+      className={`fixed z-40 top-24 right-6 w-[360px] max-w-[92vw] jade-glass rounded-xl border ${style.border} ${style.glow} overflow-hidden pointer-events-auto`}
       data-testid="jade-alert-popup"
-      onClick={onDismiss}
+      role="status"
+      aria-live="polite"
     >
-      <motion.div
-        initial={{ scale: 0.85, y: 20 }}
-        animate={{ scale: 1, y: 0 }}
-        exit={{ scale: 0.9, y: 10 }}
-        transition={{ type: "spring", damping: 22, stiffness: 200 }}
-        onClick={(e) => e.stopPropagation()}
-        className={`relative w-[520px] max-w-[92vw] jade-glass rounded-2xl border-2 ${style.border} ${style.glow} p-6 overflow-hidden`}
-      >
-        {/* Explicit close X — dismisses without server ack, respects cooldown. */}
-        <button
-          onClick={onDismiss}
-          className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center hover:bg-card/60 z-10"
-          data-testid="alert-close-btn"
-          aria-label="Dismiss"
-        >
-          <X className="w-4 h-4" />
-        </button>
-        {queueLen > 0 && (
-          <div className="absolute top-3 left-3 mono text-[9px] tracking-widest uppercase text-muted-foreground z-10">
-            +{queueLen} queued
-          </div>
-        )}
-        {/* rotating beam */}
-        <div
-          className="absolute -top-20 -right-20 w-64 h-64 opacity-20 pointer-events-none"
-          style={{
-            background: `conic-gradient(from 0deg, transparent, ${alert.severity === "critical" ? "hsl(var(--destructive))" : alert.severity === "warning" ? "#facc15" : "hsl(var(--primary))"}, transparent 60%)`,
-            animation: "spin 8s linear infinite",
-            borderRadius: "9999px",
-          }}
-        />
-        <div className="flex items-start gap-4">
-          <div className={`w-14 h-14 rounded-2xl flex items-center justify-center border ${style.border} bg-background/40`}>
-            <style.icon className="w-7 h-7" />
+      {/* Countdown strip */}
+      <div className="absolute top-0 left-0 h-[2px] bg-primary/70 transition-[width] duration-100 ease-linear"
+           style={{ width: `${barPct}%` }} />
+
+      <div className="p-3">
+        <div className="flex items-start gap-3">
+          <div className={`w-9 h-9 rounded-lg flex items-center justify-center border ${style.border} bg-background/40 flex-shrink-0`}>
+            <style.icon className="w-4 h-4" />
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-2 mb-1">
-              <span className="mono text-[10px] tracking-[0.3em] uppercase text-muted-foreground">{alert.kind}</span>
-              <span className={`mono text-[10px] tracking-[0.3em] uppercase px-2 py-0.5 rounded border ${style.border}`}>{style.label}</span>
+            <div className="flex items-center gap-1.5 mb-0.5">
+              <span className="mono text-[9px] tracking-[0.2em] uppercase text-muted-foreground">{alert.kind}</span>
+              <span className={`mono text-[9px] tracking-[0.2em] uppercase px-1.5 py-0.5 rounded border ${style.border}`}>{style.label}</span>
+              {queueLen > 0 && (
+                <span className="mono text-[9px] tracking-widest uppercase text-muted-foreground ml-auto">+{queueLen}</span>
+              )}
             </div>
-            <h3 className="text-2xl font-extrabold leading-tight" data-testid="alert-title">{alert.title}</h3>
-            <p className="text-sm text-muted-foreground mt-2 leading-relaxed" data-testid="alert-body">{alert.body}</p>
-            <div className="flex items-center gap-2 mt-4">
-              <Button variant="outline" size="sm" onClick={onReplay} data-testid="alert-replay-btn">
-                <Volume2 className="w-3.5 h-3.5 mr-1" /> Replay
+            <div className="text-sm font-semibold leading-snug" data-testid="alert-title">{alert.title}</div>
+            <div className="text-xs text-muted-foreground mt-1 leading-relaxed line-clamp-3" data-testid="alert-body">{alert.body}</div>
+            <div className="flex items-center gap-1.5 mt-2">
+              <Button variant="ghost" size="sm" className="h-7 px-2 text-xs" onClick={onReplay} data-testid="alert-replay-btn">
+                <Volume2 className="w-3 h-3 mr-1" /> Replay
               </Button>
-              <Button size="sm" onClick={onAck} className="btn-lime hover:btn-lime" data-testid="alert-ack-btn">
-                <KindIcon className="w-3.5 h-3.5 mr-1" /> Acknowledge
+              <Button size="sm" className="h-7 px-2 text-xs" onClick={onAck} data-testid="alert-ack-btn">
+                <KindIcon className="w-3 h-3 mr-1" /> Ack
               </Button>
             </div>
           </div>
+          <button
+            onClick={onDismiss}
+            className="w-6 h-6 rounded-md flex items-center justify-center hover:bg-card/60 text-muted-foreground hover:text-foreground transition-colors flex-shrink-0"
+            data-testid="alert-close-btn"
+            aria-label="Dismiss"
+          >
+            <X className="w-3.5 h-3.5" />
+          </button>
         </div>
-      </motion.div>
+      </div>
     </motion.div>
   );
 }

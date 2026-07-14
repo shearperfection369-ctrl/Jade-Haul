@@ -318,12 +318,16 @@ def make_router(db, current_user, utcnow_iso, emergent_llm_key: str, jade_system
         await _ensure_workflow(user["email"])
         return {"ok": True}
 
-    # -------- Background alert simulator --------
+    # -------- Background alert simulator (DISABLED by default) --------
+    # Previously fired a mock weather/traffic alert every 5-8 minutes for the
+    # demo driver forever. Users found this intrusive — the whole point of
+    # JADE alerts is that they surface REAL events, or events from an active
+    # simulation run. Set ALERT_SIMULATOR=1 to re-enable for demos.
     async def _ambient_alerts():
-        if os.environ.get("DISABLE_ALERT_SIMULATOR") == "1":
-            log.info("Alert simulator disabled by env")
+        if os.environ.get("ALERT_SIMULATOR") != "1":
+            log.info("Ambient alert simulator OFF (set ALERT_SIMULATOR=1 to enable)")
             return
-        log.info("Alert simulator started")
+        log.info("Ambient alert simulator ON")
         await asyncio.sleep(30)
         while True:
             try:
@@ -340,7 +344,6 @@ def make_router(db, current_user, utcnow_iso, emergent_llm_key: str, jade_system
                     "created_at": utcnow_iso(),
                 }
                 await db.driver_alerts.insert_one(doc)
-                # cap collection at 60
                 count = await db.driver_alerts.count_documents({"driver_email": DEMO_DRIVER})
                 if count > 60:
                     excess = count - 60
@@ -349,7 +352,7 @@ def make_router(db, current_user, utcnow_iso, emergent_llm_key: str, jade_system
                         await db.driver_alerts.delete_one({"_id": o["_id"]})
             except Exception as e:  # noqa: BLE001
                 log.warning("alert sim tick failed: %s", e)
-            await asyncio.sleep(random.randint(300, 480))  # 5-8 min between ambient alerts
+            await asyncio.sleep(random.randint(300, 480))
 
     try:
         asyncio.get_event_loop().create_task(_ambient_alerts())

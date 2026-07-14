@@ -1,0 +1,49 @@
+{
+  "summary": "Frontend-only verification of the subtle-toast alert popup rework on /driver dashboard. All 4 bug-fix scenarios + BOL scanner regression PASSED end-to-end against the real preview URL using curl-injected alerts (ambient simulator is confirmed OFF via backend log 'Ambient alert simulator OFF').",
+  "tests_executed": {
+    "bug_fix_1_no_ambient_popup_during_90s_idle": {
+      "result": "PASS",
+      "detail": "Logged in as driver@jadeos.com, landed on /driver, polled visibility of [data-testid=jade-alert-popup] every 10s for 90s — never appeared. GET /api/driver/alerts?unack_only=true returned []."
+    },
+    "bug_fix_2_info_toast_top_right_no_backdrop_autodismiss": {
+      "result": "PASS",
+      "detail": "Posted curl alert (kind=dispatch, severity=info). Toast appeared with data-testid=jade-alert-popup. Bounding box x=1534.99, y=96 in viewport 1920x1080 (right-half, top-third). No fullscreen fixed opaque backdrop element found. document.elementFromPoint at center of [data-testid=jade-open-conversation] returned the button itself (no overlay blocking). Popup auto-dismissed within ~13s (verified within 15s wait_for state=detached)."
+    },
+    "bug_fix_3_dismiss_acks_server_side_no_reappear_after_reload": {
+      "result": "PASS",
+      "detail": "Posted alert, waited for toast, clicked [data-testid=alert-close-btn] — popup hid immediately. GET /api/driver/alerts?unack_only=true returned [] (server-side ack confirmed). Reloaded /driver and polled visibility every 10s for 70s — dismissed alert never reappeared."
+    },
+    "bug_fix_4_critical_no_autodismiss_requires_ack": {
+      "result": "PASS",
+      "detail": "Posted alert with severity=critical. Toast appeared, visibility checked at t=5s, 10s, 15s, 18s — all True (no auto-dismiss). Clicked [data-testid=alert-ack-btn] — popup cleared."
+    },
+    "regression_bol_scanner_page_renders": {
+      "result": "PASS",
+      "detail": "/driver/scan loaded; [data-testid=bill-preview] visible."
+    }
+  },
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/frontend/src/components/JadeCompanion.jsx (reviewed; AlertPopup lines 380-456)",
+    "/app/backend/routes/companion.py (verified simulator gated behind ALERT_SIMULATOR=1)"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "JadeCompanion.jsx (457 lines): overall clean. Minor: dismissAlert() fires PATCH ack without awaiting; if the network fails mid-flight the alert could theoretically reappear on next poll — but seenAlertIds ref also caches ids, so this is safely deduped client-side. Not blocking.",
+    "Auto-dismiss timer setInterval fires every 100ms and calls setRemaining, which re-renders the toast component. Could be optimized to requestAnimationFrame, but not a real performance issue for a 12s widget.",
+    "The persistent JADE guidance banner at the top of the dashboard (Play / Volume / Next / Close controls) is a separate ticker component (not the alert popup) — behaves as designed and doesn't interfere with the alert popup work."
+  ],
+  "updated_files": [],
+  "success_rate": {"backend": "n/a (frontend-only run)", "frontend": "100% (5/5 test scenarios passed)"},
+  "test_credentials": "driver@jadeos.com / jade123 (from /app/memory/test_credentials.md)",
+  "seed_data_creation": "Created and acked ~4 transient alerts during the run via POST /api/driver/alerts; all cleaned up via PATCH .../ack at end of each test. No lingering unack alerts.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Alert popup subtle-toast behavior is fully verified. Ambient alert simulator is disabled by default (env-gated with ALERT_SIMULATOR=1). Poll interval is 60s. Info/warning toasts auto-dismiss at ~12s; critical does NOT. Both close and ack buttons PATCH /driver/alerts/{id}/ack server-side. Do NOT re-enable the ambient simulator in tests. Out of scope for this run and unchanged since iter 4/5: face auth, onboarding, sim flow, broker fleet, BOL scan, trip lifecycle.",
+  "rca of the issue": "Original bug: fullscreen modal popups triggered by an in-backend ambient simulator loop caused frequent, endlessly-repeating full-screen takeovers. Fix verified: (a) backend simulator gated behind ALERT_SIMULATOR env flag (defaults OFF, log line confirms); (b) AlertPopup rebuilt as a fixed top:24 right:6 360px card (no backdrop element, pointer-events restricted to card), rendered as sibling — not modal — so underlying dashboard elements remain interactive; (c) dismiss now PATCHes server-side ack so acked alerts don't repoll back; (d) critical severity skips auto-dismiss timer, info/warning auto-dismiss after 12s."
+}
