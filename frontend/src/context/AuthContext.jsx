@@ -23,6 +23,14 @@ export const AuthProvider = ({ children }) => {
     }
   }, []);
 
+  const refreshUser = useCallback(async () => {
+    try {
+      const { data } = await api.get("/auth/me");
+      setUser(data);
+      return data;
+    } catch { /* ignore */ }
+  }, []);
+
   useEffect(() => {
     bootstrap();
   }, [bootstrap]);
@@ -47,7 +55,7 @@ export const AuthProvider = ({ children }) => {
   };
 
   return (
-    <AuthCtx.Provider value={{ user, login, signupAndLogin, logout, loading }}>{children}</AuthCtx.Provider>
+    <AuthCtx.Provider value={{ user, login, signupAndLogin, refreshUser, logout, loading }}>{children}</AuthCtx.Provider>
   );
 };
 

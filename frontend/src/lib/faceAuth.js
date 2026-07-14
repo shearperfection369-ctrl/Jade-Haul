@@ -120,6 +120,29 @@ export function removeEnrollment(email) {
   writeStore(store);
 }
 
+// Snapshot the current webcam frame as a compressed JPEG data-url.
+// Used as the driver's avatar in the app header.
+export function snapshotFace(videoEl, size = 256) {
+  if (!videoEl || videoEl.readyState < 2) return null;
+  const canvas = document.createElement("canvas");
+  canvas.width = size;
+  canvas.height = size;
+  const ctx = canvas.getContext("2d");
+  // Cover-crop from center of the video frame
+  const vw = videoEl.videoWidth || 640;
+  const vh = videoEl.videoHeight || 480;
+  const s = Math.min(vw, vh);
+  const sx = (vw - s) / 2;
+  const sy = (vh - s) / 2;
+  ctx.save();
+  // mirror to match preview
+  ctx.translate(size, 0);
+  ctx.scale(-1, 1);
+  ctx.drawImage(videoEl, sx, sy, s, s, 0, 0, size, size);
+  ctx.restore();
+  return canvas.toDataURL("image/jpeg", 0.82);
+}
+
 // Best match across all enrolled descriptors. Returns { email, distance } or null.
 export function findBestMatch(descriptor) {
   const items = listEnrollments();

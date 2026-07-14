@@ -4,16 +4,19 @@ import {
   LayoutDashboard, Map, ClipboardList, Timer, ScanLine, Gauge, Mic,
   Activity, Truck, MessageSquare, Settings, LogOut, Briefcase,
   TrendingUp, AlertTriangle, Users, Plug, DollarSign, Radio,
-  Route as RouteIcon, Wrench, FolderArchive, Receipt, Camera, Bot, GraduationCap
+  Route as RouteIcon, Wrench, FolderArchive, Receipt, Camera, Bot, GraduationCap, ListChecks
 } from "lucide-react";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import JadeMark from "@/components/JadeMark";
 import ErrorBoundary from "@/components/ErrorBoundary";
+import JadeCompanion from "@/components/JadeCompanion";
+import JadeAmbientGlow from "@/components/JadeAmbientGlow";
 
 const driverNav = [
   { to: "/driver", icon: LayoutDashboard, label: "Command", testid: "nav-driver-dashboard" },
+  { to: "/driver/workflow", icon: ListChecks, label: "Run the Load", testid: "nav-driver-workflow", badge: "AI" },
   { to: "/driver/trip", icon: RouteIcon, label: "Trip Builder", testid: "nav-driver-trip" },
   { to: "/driver/gps", icon: Map, label: "GPS · Split", testid: "nav-driver-gps" },
   { to: "/driver/logs", icon: ClipboardList, label: "ELD Logs", testid: "nav-driver-logs" },
@@ -137,6 +140,8 @@ export default function AppShell() {
           <Outlet />
         </ErrorBoundary>
       </main>
+      <JadeCompanion />
+      <JadeAmbientGlow />
     </div>
   );
 }

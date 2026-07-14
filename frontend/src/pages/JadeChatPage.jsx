@@ -69,6 +69,7 @@ export default function JadeChatPage() {
     if (!t) return;
     setInput("");
     setMessages((m) => [...m, { role: "user", text: t }]);
+    window.dispatchEvent(new Event("jade:thinking-start"));
     try {
       const { data } = await api.post("/jade/chat", {
         session_id: sessionId,
@@ -82,6 +83,8 @@ export default function JadeChatPage() {
       speak(reply);
     } catch (e) {
       toast.error("JADE didn't respond — check connection");
+    } finally {
+      window.dispatchEvent(new Event("jade:thinking-end"));
     }
   };
 

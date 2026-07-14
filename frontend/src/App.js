@@ -8,6 +8,8 @@ import { Toaster } from "@/components/ui/sonner";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
+import OnboardingWizard from "@/pages/OnboardingWizard";
+import WorkflowPage from "@/pages/WorkflowPage";
 import AppShell from "@/components/layout/AppShell";
 import DriverDashboard from "@/pages/DriverDashboard";
 import GpsPage from "@/pages/GpsPage";
@@ -61,6 +63,7 @@ function App() {
             <Routes>
               <Route path="/login" element={<Login />} />
               <Route path="/signup" element={<Signup />} />
+              <Route path="/onboarding" element={<OnboardingWizard />} />
               <Route path="/track/:loadId" element={<PublicTrackPage />} />
 
               <Route element={<Protected><AppShell /></Protected>}>
@@ -82,6 +85,7 @@ function App() {
                 <Route path="/driver/documents" element={<Protected role="driver"><DocumentsPage /></Protected>} />
                 <Route path="/driver/fuel" element={<Protected role="driver"><FuelReceiptsPage /></Protected>} />
                 <Route path="/driver/coaching" element={<Protected role="driver"><DriverCoachingPage /></Protected>} />
+                <Route path="/driver/workflow" element={<Protected role="driver"><WorkflowPage /></Protected>} />
                 <Route path="/integrations" element={<IntegrationsPage />} />
                 <Route path="/integrations/:id" element={<IntegrationViewerPage />} />
                 <Route path="/settings" element={<SettingsPage />} />

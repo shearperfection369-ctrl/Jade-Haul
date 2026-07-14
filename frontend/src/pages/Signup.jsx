@@ -131,7 +131,8 @@ export default function Signup() {
       });
       saveEnrollment(u.email, descriptor, { name: u.name, role: u.role });
       toast.success(`Welcome aboard, ${u.name}. Face login enabled on this device.`);
-      nav(u.role === "broker" ? "/broker" : "/driver");
+      // Drivers go through the full onboarding wizard; brokers head straight to their desk.
+      nav(u.role === "broker" ? "/broker" : "/onboarding");
     } catch (err) {
       const detail = err.response?.data?.detail;
       toast.error(typeof detail === "string" ? detail : "Sign up failed.");

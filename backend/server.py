@@ -617,7 +617,29 @@ async def jade_chat(req: JadeChatRequest, user: dict = Depends(current_user)):
         if req.context:
             for k, v in req.context.items():
                 ctx_lines.append(f"- {k}: {v}")
+
+        # ---- Persistent driver profile + memory (JADE remembers) ----
+        profile_block = ""
+        if user["role"] == "driver":
+            prof = await db.driver_profiles.find_one({"email": user["email"]}) or {}
+            mems = await db.driver_memory.find({"driver_email": user["email"]}).sort("created_at", -1).limit(30).to_list(length=30)
+            prof_lines = []
+            for k in ("home_base", "dietary", "allergies", "medical_alerts", "family_status",
+                     "faith_notes", "sleep_hours", "coffee_habit", "hobbies", "safety_notes"):
+                v = prof.get(k)
+                if v:
+                    prof_lines.append(f"- {k.replace('_',' ')}: {v}")
+            for m in mems:
+                key = m.get("key")
+                if key and key not in ("home_base", "dietary", "allergies", "medical_alerts",
+                                        "family_status", "faith_notes", "sleep_hours",
+                                        "coffee_habit", "hobbies", "safety_notes"):
+                    prof_lines.append(f"- {key}: {m.get('value')}")
+            if prof_lines:
+                profile_block = "\n\nDriver profile & memory (respect these when advising):\n" + "\n".join(prof_lines)
+
         ctx_block = ("\n\nDriver/Broker context:\n" + "\n".join(ctx_lines)) if ctx_lines else ""
+        ctx_block += profile_block
 
         # ---- Location-aware POI injection ----
         loc_block = ""
@@ -676,7 +698,7 @@ async def jade_chat(req: JadeChatRequest, user: dict = Depends(current_user)):
                     ],
                     "categories": categories,
                 }
-            ctx_block = ("\n\nDriver/Broker context:\n" + "\n".join(ctx_lines)) + loc_block
+            ctx_block = ("\n\nDriver/Broker context:\n" + "\n".join(ctx_lines)) + loc_block + profile_block
 
         chat = LlmChat(
             api_key=EMERGENT_LLM_KEY,
@@ -1106,12 +1128,18 @@ async def dispatch_ws(ws: WebSocket, token: str = ""):
 from routes.phase3 import make_router as _make_phase3_router  # noqa: E402
 from routes.tts import router as _tts_router  # noqa: E402
 from routes.safety import make_router as _make_safety_router  # noqa: E402
+from routes.onboarding import make_router as _make_onboarding_router  # noqa: E402
+from routes.companion import make_router as _make_companion_router  # noqa: E402
 
 _phase3_router = _make_phase3_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso)
 api.include_router(_phase3_router)
 api.include_router(_tts_router)
 _safety_router = _make_safety_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso, emergent_llm_key=EMERGENT_LLM_KEY)
 api.include_router(_safety_router)
+_onboarding_router = _make_onboarding_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso, emergent_llm_key=EMERGENT_LLM_KEY)
+api.include_router(_onboarding_router)
+_companion_router = _make_companion_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso, emergent_llm_key=EMERGENT_LLM_KEY, jade_system_prompt=JADE_SYSTEM_PROMPT)
+api.include_router(_companion_router)
 
 
 # ---------------------------------------------------------------------------
