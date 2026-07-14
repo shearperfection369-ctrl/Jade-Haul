@@ -130,3 +130,16 @@ Phase 3 adds: editable ELD logs, manual trip builder, maintenance ledger, docume
 - **Signup flow** (`/signup`): 2-step — credentials (name/email/password/role + optional callsign/license) → face enrollment (blink-liveness challenge, captures 3 descriptors, averages them).
 - **Login flow**: existing email/password kept. New "Sign in with Face" button appears when any face is enrolled on this device.
 - **Backend**: `POST /api/auth/signup` added — bcrypt-hashed password, MongoDB `users` collection (unique-email index), back-compat with hardcoded DEMO_USERS. `/auth/login` + `current_user` now resolve from both sources.
+
+## BOL Scanner → Auto-Shipment + Trip Lifecycle (Feb 2026)
+- **Endpoint**: `POST /api/shipments/scan-bol` — GPT-4o Vision reads a photographed BOL, returns strict JSON across ~50 fields (BOL/PRO/PO/pickup#/delivery#, shipper+address+contact+phone, consignee+address+contact+phone, broker, carrier+SCAC, trailer, pickup/delivery windows, commodity, pieces/pallets/weight/class/NMFC, hazmat + UN#, reefer temp, rate breakdown, declared value, payment terms, seal#, special instructions, line items, and best-effort lat/lng for origin+destination).
+- Backend `_build_shipment_from_parse` converts extraction into a full shipment doc (id, load_id, origin/destination with coords, miles via haversine × 1.18 highway factor, rpm, ETA) and persists to `db.shipments`.
+- Auto-activate flag deactivates other loads and sets `is_active=true` in one call.
+- `GET /api/driver/active_load` now returns the driver's active DB shipment when present; falls back to demo payload otherwise.
+- **Trip lifecycle endpoints**: `/api/shipments/trip/{start|pause|resume|end}` — tracks `trip_status` (NOT_STARTED / RUNNING / PAUSED / ENDED), accrues `trip_active_seconds` via anchor timestamps, appends `trip_events` history. `end` marks status DELIVERED and deactivates.
+- **Frontend**:
+  - `BillScannerPage.jsx` — dual "Scan BOL" and "Scan & Auto-Start Load" actions, full parsed shipment card with route hero + mini GPS map + IDs/Parties/Freight/Rate sections + hazmat + line items.
+  - `TripControls.jsx` — reusable Start/Pause/Resume/End component with live H:MM:SS timer, badges per status, embedded inline in scanner (post-scan prompt) and DriverDashboard active-load card.
+  - `DriverDashboard.jsx` — new "Scan BOL to start your day" CTA when no scanned shipment is active.
+- Endpoints tested end-to-end via curl: scan→activate→start→pause→resume→end all succeed; `/driver/active_load` correctly reflects DB state.
+

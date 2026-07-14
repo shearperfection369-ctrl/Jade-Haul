@@ -6,6 +6,7 @@ import GpsMap from "@/components/GpsMap";
 import JadeOrb from "@/components/JadeOrb";
 import EldLogGrid from "@/components/EldLogGrid";
 import AiCompanionBanner from "@/components/AiCompanionBanner";
+import TripControls from "@/components/TripControls";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Badge } from "@/components/ui/badge";
@@ -13,7 +14,7 @@ import { Button } from "@/components/ui/button";
 import { useNavigate } from "react-router-dom";
 import {
   Clock, Fuel, Wrench, ShieldCheck, MapPin, Thermometer,
-  Gauge, ArrowRight, Pause, Plug, ExternalLink
+  Gauge, ArrowRight, Pause, Plug, ExternalLink, ScanLine
 } from "lucide-react";
 
 const fetcher = (url) => api.get(url).then((r) => r.data);
@@ -32,7 +33,7 @@ const KpiCard = ({ icon: Icon, label, value, sub, accent, testid }) => (
 export default function DriverDashboard() {
   const nav = useNavigate();
   const { data: hos } = useSWR("/driver/hos", fetcher);
-  const { data: load } = useSWR("/driver/active_load", fetcher);
+  const { data: load, mutate: mutateLoad } = useSWR("/driver/active_load", fetcher);
   const { data: stations } = useSWR("/weigh-stations", fetcher);
   const { data: fleet } = useSWR("/fleet/health", fetcher);
   const { data: msgs } = useSWR("/messages", fetcher);
@@ -56,6 +57,24 @@ export default function DriverDashboard() {
           </div>
         }
       />
+
+      {/* Scan BOL CTA — only shown when no scanned shipment has been activated */}
+      {!load?.id && (
+        <div className="jade-panel p-4 flex items-center gap-4 border-primary/40 jade-tracing-border" data-testid="scan-bol-cta">
+          <div className="w-12 h-12 rounded-xl bg-primary/15 border border-primary/40 flex items-center justify-center flex-shrink-0">
+            <ScanLine className="w-6 h-6 text-primary" />
+          </div>
+          <div className="flex-1 min-w-0">
+            <div className="font-[Unbounded] text-base">Starting your day? Scan your BOL</div>
+            <div className="text-xs text-muted-foreground">
+              JADE Vision will read every field, auto-build the shipment, and prompt you to start the trip timer.
+            </div>
+          </div>
+          <Button onClick={() => nav("/driver/scan")} data-testid="scan-bol-cta-btn">
+            <ScanLine className="w-4 h-4 mr-2" /> Scan BOL
+          </Button>
+        </div>
+      )}
 
       {/* Top KPIs */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -138,6 +157,13 @@ export default function DriverDashboard() {
             <div className="jade-glass px-3 py-2 flex items-center gap-2"><Gauge className="w-3.5 h-3.5 text-primary" /> {load?.weight_lbs?.toLocaleString()} lbs</div>
             <div className="jade-glass px-3 py-2 flex items-center gap-2"><MapPin className="w-3.5 h-3.5 text-primary" /> {load?.miles_remaining} mi left</div>
           </div>
+
+          {/* Trip lifecycle controls appear once a scanned shipment is active */}
+          {load?.id && (
+            <div className="mt-4">
+              <TripControls shipment={load} onChange={(u) => mutateLoad(u, false)} compact />
+            </div>
+          )}
         </div>
 
         {/* Alerts */}

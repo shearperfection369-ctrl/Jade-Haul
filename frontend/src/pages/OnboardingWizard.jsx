@@ -49,6 +49,17 @@ export default function OnboardingWizard() {
   const nav = useNavigate();
   const [step, setStep] = useState(0);
 
+  // If the caller was launched via "Try a sample trucker simulation", we
+  // fetch the pre-seeded server profile and pre-fill each step so the user
+  // can just walk through the setup story quickly.
+  const [simAutostart, setSimAutostart] = useState(null);
+  useEffect(() => {
+    try {
+      const raw = sessionStorage.getItem("jadehaul.sim.autostart");
+      if (raw) setSimAutostart(JSON.parse(raw));
+    } catch { /* silent */ }
+  }, []);
+
   // Step 0 — face
   const capRef = useRef(null);
   const [samples, setSamples] = useState([]);
@@ -82,6 +93,46 @@ export default function OnboardingWizard() {
   const [briefingLoading, setBriefingLoading] = useState(false);
   const [tripId, setTripId] = useState(null);
   const [voicePlaying, setVoicePlaying] = useState(false);
+
+  // Pre-fill fields from the pre-seeded server profile when in sim-autostart mode.
+  useEffect(() => {
+    if (!simAutostart || !user) return;
+    (async () => {
+      try {
+        const { data } = await api.get("/driver/profile");
+        if (data) {
+          setBasics((b) => ({
+            ...b,
+            callsign: data.callsign || b.callsign,
+            license: data.license || b.license,
+            home_base: data.home_base || b.home_base,
+            home_lat: data.home_lat ?? b.home_lat,
+            home_lng: data.home_lng ?? b.home_lng,
+          }));
+          setAttrs((a) => ({
+            ...a,
+            dietary: data.dietary || a.dietary,
+            allergies: data.allergies || a.allergies,
+            medical_alerts: data.medical_alerts || a.medical_alerts,
+            family_status: data.family_status || a.family_status,
+            faith_notes: data.faith_notes || a.faith_notes,
+            sleep_hours: data.sleep_hours ?? a.sleep_hours,
+            coffee_habit: data.coffee_habit || a.coffee_habit,
+            hobbies: data.hobbies || a.hobbies,
+            safety_notes: data.safety_notes || a.safety_notes,
+          }));
+          setLoad((l) => ({
+            ...l,
+            origin: l.origin || "Fort Worth, TX",
+            dest: l.dest || "Phoenix, AZ",
+            commodity: l.commodity || "frozen produce",
+          }));
+        }
+      } catch { /* silent */ }
+    })();
+    // Skip the face scan step — sim account already logged in.
+    setStep(1);
+  }, [simAutostart, user]);
 
   // Face-scan poll loop (only when on step 0 and camera ready)
   useEffect(() => {
@@ -150,7 +201,7 @@ export default function OnboardingWizard() {
   if (authLoading) return <div className="h-screen w-full flex items-center justify-center text-muted-foreground">Booting…</div>;
   if (!user) return <Navigate to="/login" replace />;
 
-  const scanReady = samples.length >= SAMPLES_NEEDED && !!avatarUrl;
+  const scanReady = simAutostart ? true : (samples.length >= SAMPLES_NEEDED && !!avatarUrl);
 
   const goNext = () => setStep((s) => Math.min(STEPS.length - 1, s + 1));
   const goPrev = () => setStep((s) => Math.max(0, s - 1));
@@ -219,7 +270,10 @@ export default function OnboardingWizard() {
     goNext();
   };
 
-  const finish = () => nav("/driver");
+  const finish = () => {
+    sessionStorage.removeItem("jadehaul.sim.autostart");
+    nav("/driver");
+  };
 
   const speakBriefing = async () => {
     if (voicePlaying) return;
@@ -254,7 +308,7 @@ export default function OnboardingWizard() {
 
       {/* Top brand + step indicator */}
       <header className="px-6 lg:px-14 pt-8 pb-4 flex items-center justify-between gap-4">
-        <JadeMark size="sm" subtitle="Cockpit Onboarding · Biometric Sequence" />
+        <JadeMark size="sm" subtitle={simAutostart ? "Sample Trucker · Setup Preview" : "Cockpit Onboarding · Biometric Sequence"} />
         <div className="hidden md:flex items-center gap-1">
           {STEPS.map((s, i) => {
             const done = i < step;
@@ -487,11 +541,11 @@ export default function OnboardingWizard() {
               <ArrowLeft className="w-4 h-4 mr-2" /> Back
             </Button>
             <div className="flex items-center gap-3">
-              {step > 0 && step < 3 && (
-                <button onClick={() => nav("/driver")} className="mono text-[10px] tracking-widest text-muted-foreground hover:text-foreground uppercase" data-testid="onboard-skip">
-                  Skip onboarding
+              {(step > 0 && step < 3) || simAutostart ? (
+                <button onClick={finish} className="mono text-[10px] tracking-widest text-muted-foreground hover:text-foreground uppercase" data-testid="onboard-skip">
+                  Skip to cockpit →
                 </button>
-              )}
+              ) : null}
               {step < STEPS.length - 1 ? (
                 <Button onClick={advance} disabled={!canAdvance()} className="btn-lime hover:btn-lime h-11 px-6" data-testid="onboard-next-btn">
                   {step === 3 ? <><Sparkles className="w-4 h-4 mr-2" /> Generate briefing</> : <>Continue <ArrowRight className="w-4 h-4 ml-2" /></>}

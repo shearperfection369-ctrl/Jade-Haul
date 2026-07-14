@@ -103,17 +103,28 @@ export default function JadeCompanion() {
     return () => { alive = false; clearInterval(id); };
   }, [user]);
 
-  // Drain queue → surface next alert if none showing.
+  // Drain queue → surface next alert. Enforce a 6-second cooldown between
+  // popups so acking one doesn't immediately fire another (was the "popup
+  // never goes away" bug).
+  const cooldownRef = useRef(0);
   useEffect(() => {
     if (alert || alertQueue.length === 0) return;
-    const [next, ...rest] = alertQueue;
-    setAlertQueue(rest);
-    setAlert(next);
-    // Speak the alert automatically.
-    (async () => {
-      try { await speakSafely(`${next.title}. ${next.body}`); } catch { /* silent */ }
-    })();
-  }, [alert, alertQueue]);
+    const wait = Math.max(0, cooldownRef.current - Date.now());
+    const timer = setTimeout(() => {
+      // Re-check under the timeout — user may have opened another popup meanwhile.
+      setAlertQueue((q) => {
+        if (!q.length) return q;
+        const [next, ...rest] = q;
+        setAlert(next);
+        (async () => {
+          try { await speakSafely(`${next.title}. ${next.body}`); } catch { /* silent */ }
+        })();
+        return rest;
+      });
+    }, wait);
+    return () => clearTimeout(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alert, alertQueue.length]);
 
   // Register user activity — throttled via events on window.
   useEffect(() => {
@@ -194,10 +205,31 @@ export default function JadeCompanion() {
   const ackAlert = async () => {
     if (!alert) return;
     try { await api.patch(`/driver/alerts/${alert.id}/ack`); } catch { /* silent */ }
+    cooldownRef.current = Date.now() + 6000;   // 6-second cooldown before next popup
     setAlert(null);
     stopSpeak();
     speakingRef.current = false;
   };
+
+  // Local dismiss — closes the popup without server ack. Server will still
+  // return the alert as unack'd on next poll, but seenAlertIds ensures it
+  // won't re-pop; user can revisit via a future Alerts page.
+  const dismissAlert = () => {
+    if (!alert) return;
+    cooldownRef.current = Date.now() + 6000;
+    setAlert(null);
+    stopSpeak();
+    speakingRef.current = false;
+  };
+
+  // ESC to dismiss popup.
+  useEffect(() => {
+    if (!alert) return;
+    const onKey = (e) => { if (e.key === "Escape") dismissAlert(); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [alert]);
 
   const openWithGreeting = async () => {
     setOpen(true);
@@ -328,7 +360,9 @@ export default function JadeCompanion() {
         {alert && (
           <AlertPopup
             alert={alert}
+            queueLen={alertQueue.length}
             onAck={ackAlert}
+            onDismiss={dismissAlert}
             onReplay={() => speakSafely(`${alert.title}. ${alert.body}`)}
           />
         )}
@@ -337,7 +371,7 @@ export default function JadeCompanion() {
   );
 }
 
-function AlertPopup({ alert, onAck, onReplay }) {
+function AlertPopup({ alert, queueLen, onAck, onDismiss, onReplay }) {
   const style = SEV_STYLE[alert.severity] || SEV_STYLE.info;
   const KindIcon = KIND_ICON[alert.kind] || Radio;
   return (
@@ -347,14 +381,30 @@ function AlertPopup({ alert, onAck, onReplay }) {
       exit={{ opacity: 0 }}
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-background/70 backdrop-blur-sm"
       data-testid="jade-alert-popup"
+      onClick={onDismiss}
     >
       <motion.div
         initial={{ scale: 0.85, y: 20 }}
         animate={{ scale: 1, y: 0 }}
         exit={{ scale: 0.9, y: 10 }}
         transition={{ type: "spring", damping: 22, stiffness: 200 }}
+        onClick={(e) => e.stopPropagation()}
         className={`relative w-[520px] max-w-[92vw] jade-glass rounded-2xl border-2 ${style.border} ${style.glow} p-6 overflow-hidden`}
       >
+        {/* Explicit close X — dismisses without server ack, respects cooldown. */}
+        <button
+          onClick={onDismiss}
+          className="absolute top-2 right-2 w-8 h-8 rounded-full flex items-center justify-center hover:bg-card/60 z-10"
+          data-testid="alert-close-btn"
+          aria-label="Dismiss"
+        >
+          <X className="w-4 h-4" />
+        </button>
+        {queueLen > 0 && (
+          <div className="absolute top-3 left-3 mono text-[9px] tracking-widest uppercase text-muted-foreground z-10">
+            +{queueLen} queued
+          </div>
+        )}
         {/* rotating beam */}
         <div
           className="absolute -top-20 -right-20 w-64 h-64 opacity-20 pointer-events-none"

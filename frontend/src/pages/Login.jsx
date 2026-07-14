@@ -167,11 +167,16 @@ export default function Login() {
     setSimLaunching(true);
     try {
       const { data } = await (await import("@/lib/api")).api.post("/simulation/start", { new_trucker: true });
-      // Persist the returned token, then refresh the user so AuthContext picks it up.
+      // Persist the returned token, then hard-navigate so AuthProvider re-bootstraps.
       localStorage.setItem("jadeos.token", data.token);
-      toast.success(`Sample trucker "${data.user.name}" launched. Watch the top HUD.`);
-      // Full page navigation to guarantee AuthProvider re-bootstraps with the new token.
-      window.location.href = "/driver";
+      // Mark this session so /onboarding knows to pre-populate + short-flow.
+      sessionStorage.setItem("jadehaul.sim.autostart", JSON.stringify({
+        sim_id: data.sim_id,
+        name: data.user.name,
+        email: data.user.email,
+      }));
+      toast.success(`Sample trucker "${data.user.name}" launched. Setting up cockpit…`);
+      window.location.href = "/onboarding";
     } catch (err) {
       toast.error(err.response?.data?.detail || "Could not start simulation.");
       setSimLaunching(false);

@@ -231,9 +231,9 @@ def make_router(db, current_user, utcnow_iso, jwt_secret: str, jwt_alg: str, mak
                     }
                     await db.cabin_events.insert_one(ev)
 
-                # Fire an alert every ~4 ticks
+                # Fire an alert every ~6 ticks (was 4)
                 ticks_since_alert += 1
-                if ticks_since_alert >= 4 and random.random() < 0.6:
+                if ticks_since_alert >= 6 and random.random() < 0.5:
                     ticks_since_alert = 0
                     tpl = random.choice(ALERT_POOL).copy()
                     await db.driver_alerts.insert_one({

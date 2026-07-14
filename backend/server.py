@@ -195,6 +195,21 @@ class BillScanRequest(BaseModel):
     mime_type: str = "image/jpeg"
 
 
+class BolScanRequest(BaseModel):
+    image_base64: str
+    mime_type: str = "image/jpeg"
+    auto_activate: bool = False
+
+
+class ShipmentActivateRequest(BaseModel):
+    shipment_id: str
+
+
+class TripActionRequest(BaseModel):
+    shipment_id: str
+    note: Optional[str] = ""
+
+
 class QuoteOptimizeRequest(BaseModel):
     origin: str
     destination: str
@@ -318,6 +333,14 @@ async def driver_hos(user: dict = Depends(current_user)):
 # ---------------- Driver: Current load + route ----------------
 @api.get("/driver/active_load")
 async def active_load(user: dict = Depends(current_user)):
+    # If the driver has scanned + activated a BOL, serve that shipment.
+    active = await db.shipments.find_one(
+        {"driver_id": user["id"], "is_active": True},
+        sort=[("activated_at", -1)],
+    )
+    if active:
+        active.pop("_id", None)
+        return active
     return {
         "load_id": "JL-2026-00917",
         "broker": "Atlas Freight Co.",
@@ -829,6 +852,502 @@ async def bill_scan(req: BillScanRequest, user: dict = Depends(current_user)):
             },
             "note": "Vision unavailable — returned simulated parse so demo continues.",
         }
+
+
+# ---------------------------------------------------------------------------
+# Shipments — BOL scan → AI auto-populate → active load
+# ---------------------------------------------------------------------------
+BOL_EXTRACTION_PROMPT = """You are an expert freight document reader. You are looking at a Bill of Lading (BOL) that a truck driver has just picked up.
+
+Extract EVERY field you can read and return STRICT JSON only — no prose, no markdown fences.
+
+Required schema (use null when a field is truly not on the document):
+{
+  "bol_number": string|null,
+  "pro_number": string|null,
+  "load_number": string|null,
+  "po_number": string|null,
+  "pickup_number": string|null,
+  "delivery_number": string|null,
+
+  "shipper_name": string|null,
+  "shipper_address": string|null,
+  "shipper_city": string|null,
+  "shipper_state": string|null,
+  "shipper_zip": string|null,
+  "shipper_phone": string|null,
+  "shipper_contact": string|null,
+
+  "consignee_name": string|null,
+  "consignee_address": string|null,
+  "consignee_city": string|null,
+  "consignee_state": string|null,
+  "consignee_zip": string|null,
+  "consignee_phone": string|null,
+  "consignee_contact": string|null,
+
+  "broker_name": string|null,
+  "carrier_name": string|null,
+  "carrier_scac": string|null,
+  "driver_name": string|null,
+  "trailer_number": string|null,
+
+  "pickup_date": string|null,          // ISO date if possible
+  "pickup_time_window": string|null,
+  "delivery_date": string|null,
+  "delivery_time_window": string|null,
+
+  "commodity": string|null,
+  "description": string|null,
+  "pieces": number|null,
+  "pallets": number|null,
+  "weight_lbs": number|null,
+  "dimensions": string|null,
+  "class": string|null,
+  "nmfc": string|null,
+  "hazmat": boolean,
+  "hazmat_un_number": string|null,
+  "temperature_f": number|null,
+  "reefer_setting": string|null,
+
+  "declared_value_usd": number|null,
+  "rate_usd": number|null,
+  "fuel_surcharge_usd": number|null,
+  "accessorials_usd": number|null,
+  "total_amount_usd": number|null,
+  "payment_terms": string|null,
+
+  "special_instructions": string|null,
+  "seal_number": string|null,
+  "signature_shipper": string|null,
+  "signature_driver": string|null,
+
+  "line_items": [ { "description": string, "qty": number|null, "weight_lbs": number|null, "class": string|null } ],
+
+  "origin_lat": number|null,           // best-effort lat/lng of shipper city if commonly known
+  "origin_lng": number|null,
+  "destination_lat": number|null,
+  "destination_lng": number|null,
+
+  "confidence": number                 // 0..1 overall extraction confidence
+}
+
+Rules:
+- Return JSON only. Nothing else.
+- For city/state, when the address text is clear, fill origin_lat/lng and destination_lat/lng using well-known city coordinates.
+- For weight_lbs and total_amount_usd: return NUMBERS, no $ or commas.
+- If the document is not a BOL, still return the schema with best-guess fields and set confidence < 0.35.
+"""
+
+
+def _approx_miles(a_lat, a_lng, b_lat, b_lng):
+    from math import asin, cos, radians, sin, sqrt
+    if None in (a_lat, a_lng, b_lat, b_lng):
+        return None
+    R = 3958.8
+    dlat = radians(b_lat - a_lat)
+    dlng = radians(b_lng - a_lng)
+    s = sin(dlat / 2) ** 2 + cos(radians(a_lat)) * cos(radians(b_lat)) * sin(dlng / 2) ** 2
+    # highway multiplier ~1.18
+    return round(2 * R * asin(sqrt(s)) * 1.18, 1)
+
+
+def _fmt_place(city, state):
+    if city and state: return f"{city}, {state}"
+    return city or state or ""
+
+
+def _build_shipment_from_parse(parsed: dict, driver: dict) -> dict:
+    origin_city = parsed.get("shipper_city")
+    origin_state = parsed.get("shipper_state")
+    dest_city = parsed.get("consignee_city")
+    dest_state = parsed.get("consignee_state")
+    o_lat, o_lng = parsed.get("origin_lat"), parsed.get("origin_lng")
+    d_lat, d_lng = parsed.get("destination_lat"), parsed.get("destination_lng")
+    miles = _approx_miles(o_lat, o_lng, d_lat, d_lng)
+
+    # Compose a load-id from BOL / PRO / load_number when possible
+    load_id = (parsed.get("load_number") or parsed.get("bol_number")
+               or parsed.get("pro_number") or f"JL-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}")
+
+    now = datetime.now(timezone.utc)
+    eta_hr = (miles / 55) if miles else 10
+    ship = {
+        "id": str(uuid.uuid4()),
+        "driver_id": driver["id"],
+        "driver_email": driver["email"],
+        "created_at": now.isoformat(),
+        "source": "BOL_SCAN",
+        "load_id": load_id,
+        "bol_number": parsed.get("bol_number"),
+        "pro_number": parsed.get("pro_number"),
+        "po_number": parsed.get("po_number"),
+        "pickup_number": parsed.get("pickup_number"),
+        "delivery_number": parsed.get("delivery_number"),
+
+        "broker": parsed.get("broker_name") or "—",
+        "broker_rating": 4.7,
+        "carrier": parsed.get("carrier_name"),
+        "carrier_scac": parsed.get("carrier_scac"),
+        "trailer_number": parsed.get("trailer_number"),
+
+        "shipper": {
+            "name": parsed.get("shipper_name"),
+            "address": parsed.get("shipper_address"),
+            "city": origin_city, "state": origin_state, "zip": parsed.get("shipper_zip"),
+            "phone": parsed.get("shipper_phone"), "contact": parsed.get("shipper_contact"),
+        },
+        "consignee": {
+            "name": parsed.get("consignee_name"),
+            "address": parsed.get("consignee_address"),
+            "city": dest_city, "state": dest_state, "zip": parsed.get("consignee_zip"),
+            "phone": parsed.get("consignee_phone"), "contact": parsed.get("consignee_contact"),
+        },
+
+        "origin": {"name": _fmt_place(origin_city, origin_state) or (parsed.get("shipper_name") or "Origin"),
+                   "lat": o_lat, "lng": o_lng},
+        "destination": {"name": _fmt_place(dest_city, dest_state) or (parsed.get("consignee_name") or "Destination"),
+                        "lat": d_lat, "lng": d_lng},
+        "stops": [],
+
+        "pickup_date": parsed.get("pickup_date"),
+        "pickup_time_window": parsed.get("pickup_time_window"),
+        "delivery_date": parsed.get("delivery_date"),
+        "delivery_time_window": parsed.get("delivery_time_window"),
+
+        "commodity": parsed.get("commodity") or parsed.get("description") or "General Freight",
+        "pieces": parsed.get("pieces"),
+        "pallets": parsed.get("pallets"),
+        "weight_lbs": parsed.get("weight_lbs") or 0,
+        "dimensions": parsed.get("dimensions"),
+        "freight_class": parsed.get("class"),
+        "nmfc": parsed.get("nmfc"),
+        "hazmat": bool(parsed.get("hazmat")),
+        "hazmat_un_number": parsed.get("hazmat_un_number"),
+        "temperature_f": parsed.get("temperature_f"),
+        "reefer_setting": parsed.get("reefer_setting"),
+
+        "rate_usd": parsed.get("total_amount_usd") or parsed.get("rate_usd") or 0,
+        "rate_per_mile": round(((parsed.get("total_amount_usd") or 0) / miles), 2) if miles and parsed.get("total_amount_usd") else 0,
+        "fuel_surcharge_usd": parsed.get("fuel_surcharge_usd"),
+        "accessorials_usd": parsed.get("accessorials_usd"),
+        "payment_terms": parsed.get("payment_terms"),
+        "declared_value_usd": parsed.get("declared_value_usd"),
+
+        "seal_number": parsed.get("seal_number"),
+        "special_instructions": parsed.get("special_instructions"),
+        "line_items": parsed.get("line_items") or [],
+
+        "miles_total": miles or 0,
+        "miles_remaining": miles or 0,
+        "eta": (now + timedelta(hours=eta_hr)).isoformat(),
+        "status": "SCANNED",
+        "is_active": False,
+        "trip_status": "NOT_STARTED",   # NOT_STARTED | RUNNING | PAUSED | ENDED
+        "trip_started_at": None,
+        "trip_paused_at": None,
+        "trip_ended_at": None,
+        "trip_active_seconds": 0,
+        "trip_events": [],
+        "confidence": parsed.get("confidence", 0.7),
+    }
+    return ship
+
+
+@api.post("/shipments/scan-bol")
+async def scan_bol(req: BolScanRequest, user: dict = Depends(current_user)):
+    """Scan a Bill of Lading with GPT-4o Vision, extract every field, build a
+    complete shipment record from origin to destination. Optionally set it as
+    the driver's active load in one step."""
+    raw = ""
+    parsed = None
+    used_fallback = False
+    error_msg = None
+    try:
+        from emergentintegrations.llm.chat import LlmChat, UserMessage, ImageContent  # type: ignore
+        clean_b64 = req.image_base64.split(",")[-1] if "," in req.image_base64 else req.image_base64
+
+        chat = LlmChat(
+            api_key=EMERGENT_LLM_KEY,
+            session_id=f"bol-{uuid.uuid4()}",
+            system_message="You are a precise, exhaustive freight-document OCR engine specialized in Bills of Lading.",
+        ).with_model("openai", "gpt-4o")
+
+        result = await chat.send_message(
+            UserMessage(text=BOL_EXTRACTION_PROMPT, file_contents=[ImageContent(image_base64=clean_b64)])
+        )
+        raw = result if isinstance(result, str) else (getattr(result, "text", None) or str(result))
+
+        import json
+        import re
+        match = re.search(r"\{[\s\S]*\}", raw)
+        if match:
+            try:
+                parsed = json.loads(match.group(0))
+            except Exception as je:  # noqa: BLE001
+                logger.warning("BOL JSON parse fail: %s", je)
+                parsed = None
+    except Exception as exc:  # noqa: BLE001
+        logger.exception("scan_bol vision call failed")
+        error_msg = str(exc)
+
+    if not parsed:
+        # Demo fallback so the flow keeps working even if the LLM is unavailable
+        used_fallback = True
+        parsed = {
+            "bol_number": "BOL-44210-X", "pro_number": "PRO-88231", "load_number": "LD-2026-00917",
+            "po_number": "PO-77812",
+            "shipper_name": "FreshHarvest Foods · Dallas DC",
+            "shipper_address": "1400 Industrial Blvd", "shipper_city": "Dallas", "shipper_state": "TX",
+            "shipper_zip": "75207", "shipper_phone": "(214) 555-0142", "shipper_contact": "Rita Alvarez",
+            "consignee_name": "Sun Valley Grocers", "consignee_address": "22 Distribution Way",
+            "consignee_city": "Phoenix", "consignee_state": "AZ", "consignee_zip": "85043",
+            "consignee_phone": "(602) 555-0199", "consignee_contact": "Miguel Ortega",
+            "broker_name": "Atlas Freight Co.", "carrier_name": "Reyes Trucking LLC", "carrier_scac": "REYS",
+            "trailer_number": "R-8842",
+            "pickup_date": "2026-02-11", "pickup_time_window": "06:00-08:00",
+            "delivery_date": "2026-02-12", "delivery_time_window": "14:00-18:00",
+            "commodity": "Refrigerated produce", "description": "Iceberg lettuce, romaine, tomatoes",
+            "pieces": 24, "pallets": 24, "weight_lbs": 38400, "dimensions": "48x40x60",
+            "class": "70", "nmfc": "049880", "hazmat": False, "hazmat_un_number": None,
+            "temperature_f": 36, "reefer_setting": "36F continuous",
+            "declared_value_usd": 42000, "rate_usd": 2400, "fuel_surcharge_usd": 235.50,
+            "accessorials_usd": 50, "total_amount_usd": 2685.50, "payment_terms": "Net 30",
+            "special_instructions": "Driver must sign at guard shack. 2-hr free time then detention applies.",
+            "seal_number": "SL-778124",
+            "line_items": [
+                {"description": "Linehaul", "qty": 1, "weight_lbs": 38400, "class": "70"},
+                {"description": "Fuel surcharge", "qty": 1, "weight_lbs": None, "class": None},
+            ],
+            "origin_lat": 32.7767, "origin_lng": -96.7970,
+            "destination_lat": 33.4484, "destination_lng": -112.0740,
+            "confidence": 0.62,
+        }
+
+    shipment = _build_shipment_from_parse(parsed, user)
+    if used_fallback:
+        shipment["confidence"] = 0.55
+        shipment["fallback"] = True
+
+    # Persist raw scan + shipment
+    await db.bol_scans.insert_one({
+        "id": str(uuid.uuid4()),
+        "user_id": user["id"],
+        "ts": utcnow_iso(),
+        "raw_response": raw,
+        "parsed": parsed,
+        "shipment_id": shipment["id"],
+        "fallback": used_fallback,
+        "error": error_msg,
+    })
+    await db.shipments.insert_one(shipment.copy())
+
+    activated = False
+    if req.auto_activate:
+        await db.shipments.update_many(
+            {"driver_id": user["id"], "is_active": True},
+            {"$set": {"is_active": False, "status": "COMPLETED"}},
+        )
+        await db.shipments.update_one(
+            {"id": shipment["id"]},
+            {"$set": {"is_active": True, "status": "ACTIVE",
+                      "activated_at": utcnow_iso()}},
+        )
+        shipment["is_active"] = True
+        shipment["status"] = "ACTIVE"
+        shipment["activated_at"] = utcnow_iso()
+        activated = True
+
+    shipment.pop("_id", None)
+    return {
+        "shipment": shipment,
+        "parsed": parsed,
+        "activated": activated,
+        "fallback": used_fallback,
+        "confidence": shipment["confidence"],
+        "note": ("Vision unavailable — used demo fallback so flow continues." if used_fallback else None),
+    }
+
+
+@api.get("/shipments")
+async def list_shipments(user: dict = Depends(current_user)):
+    cursor = db.shipments.find({"driver_id": user["id"]}, {"_id": 0}).sort("created_at", -1)
+    return await cursor.to_list(200)
+
+
+@api.get("/shipments/{shipment_id}")
+async def get_shipment(shipment_id: str, user: dict = Depends(current_user)):
+    doc = await db.shipments.find_one({"id": shipment_id, "driver_id": user["id"]}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    return doc
+
+
+@api.post("/shipments/activate")
+async def activate_shipment(req: ShipmentActivateRequest, user: dict = Depends(current_user)):
+    doc = await db.shipments.find_one({"id": req.shipment_id, "driver_id": user["id"]})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    await db.shipments.update_many(
+        {"driver_id": user["id"], "is_active": True},
+        {"$set": {"is_active": False, "status": "COMPLETED"}},
+    )
+    await db.shipments.update_one(
+        {"id": req.shipment_id},
+        {"$set": {"is_active": True, "status": "ACTIVE", "activated_at": utcnow_iso()}},
+    )
+    doc.update({"is_active": True, "status": "ACTIVE", "activated_at": utcnow_iso()})
+    doc.pop("_id", None)
+    return doc
+
+
+@api.delete("/shipments/{shipment_id}")
+async def delete_shipment(shipment_id: str, user: dict = Depends(current_user)):
+    res = await db.shipments.delete_one({"id": shipment_id, "driver_id": user["id"]})
+    if res.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    return {"ok": True}
+
+
+# ---------------- Trip lifecycle: start / pause / resume / end ----------------
+async def _get_owned_shipment(shipment_id: str, user: dict) -> dict:
+    doc = await db.shipments.find_one({"id": shipment_id, "driver_id": user["id"]})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Shipment not found")
+    return doc
+
+
+def _accrue_active_seconds(doc: dict, now_iso: str) -> int:
+    """If shipment is currently RUNNING, add elapsed seconds since trip_started_at (or resume) to trip_active_seconds."""
+    if doc.get("trip_status") != "RUNNING":
+        return doc.get("trip_active_seconds", 0)
+    anchor = doc.get("trip_resumed_at") or doc.get("trip_started_at")
+    if not anchor:
+        return doc.get("trip_active_seconds", 0)
+    start_dt = datetime.fromisoformat(anchor)
+    now_dt = datetime.fromisoformat(now_iso)
+    delta = int((now_dt - start_dt).total_seconds())
+    return int(doc.get("trip_active_seconds", 0)) + max(0, delta)
+
+
+@api.post("/shipments/trip/start")
+async def trip_start(req: TripActionRequest, user: dict = Depends(current_user)):
+    doc = await _get_owned_shipment(req.shipment_id, user)
+    if doc.get("trip_status") == "RUNNING":
+        raise HTTPException(status_code=400, detail="Trip is already running")
+    if doc.get("trip_status") == "ENDED":
+        raise HTTPException(status_code=400, detail="Trip already ended")
+    now = utcnow_iso()
+    # Ensure this shipment is also the active load
+    await db.shipments.update_many(
+        {"driver_id": user["id"], "is_active": True, "id": {"$ne": req.shipment_id}},
+        {"$set": {"is_active": False}},
+    )
+    event = {"kind": "TRIP_START", "ts": now, "note": req.note or ""}
+    await db.shipments.update_one(
+        {"id": req.shipment_id},
+        {
+            "$set": {
+                "trip_status": "RUNNING",
+                "trip_started_at": now,
+                "trip_resumed_at": now,
+                "trip_paused_at": None,
+                "trip_ended_at": None,
+                "is_active": True,
+                "status": "ACTIVE",
+                "activated_at": doc.get("activated_at") or now,
+            },
+            "$push": {"trip_events": event},
+        },
+    )
+    doc.update({
+        "trip_status": "RUNNING", "trip_started_at": now, "trip_resumed_at": now,
+        "trip_paused_at": None, "is_active": True, "status": "ACTIVE",
+    })
+    doc.setdefault("trip_events", []).append(event)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.post("/shipments/trip/pause")
+async def trip_pause(req: TripActionRequest, user: dict = Depends(current_user)):
+    doc = await _get_owned_shipment(req.shipment_id, user)
+    if doc.get("trip_status") != "RUNNING":
+        raise HTTPException(status_code=400, detail="Trip is not running")
+    now = utcnow_iso()
+    active_secs = _accrue_active_seconds(doc, now)
+    event = {"kind": "TRIP_PAUSE", "ts": now, "note": req.note or ""}
+    await db.shipments.update_one(
+        {"id": req.shipment_id},
+        {
+            "$set": {
+                "trip_status": "PAUSED",
+                "trip_paused_at": now,
+                "trip_active_seconds": active_secs,
+                "trip_resumed_at": None,
+            },
+            "$push": {"trip_events": event},
+        },
+    )
+    doc.update({"trip_status": "PAUSED", "trip_paused_at": now, "trip_active_seconds": active_secs, "trip_resumed_at": None})
+    doc.setdefault("trip_events", []).append(event)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.post("/shipments/trip/resume")
+async def trip_resume(req: TripActionRequest, user: dict = Depends(current_user)):
+    doc = await _get_owned_shipment(req.shipment_id, user)
+    if doc.get("trip_status") != "PAUSED":
+        raise HTTPException(status_code=400, detail="Trip is not paused")
+    now = utcnow_iso()
+    event = {"kind": "TRIP_RESUME", "ts": now, "note": req.note or ""}
+    await db.shipments.update_one(
+        {"id": req.shipment_id},
+        {
+            "$set": {
+                "trip_status": "RUNNING",
+                "trip_resumed_at": now,
+                "trip_paused_at": None,
+            },
+            "$push": {"trip_events": event},
+        },
+    )
+    doc.update({"trip_status": "RUNNING", "trip_resumed_at": now, "trip_paused_at": None})
+    doc.setdefault("trip_events", []).append(event)
+    doc.pop("_id", None)
+    return doc
+
+
+@api.post("/shipments/trip/end")
+async def trip_end(req: TripActionRequest, user: dict = Depends(current_user)):
+    doc = await _get_owned_shipment(req.shipment_id, user)
+    if doc.get("trip_status") == "ENDED":
+        raise HTTPException(status_code=400, detail="Trip already ended")
+    now = utcnow_iso()
+    active_secs = _accrue_active_seconds(doc, now)
+    event = {"kind": "TRIP_END", "ts": now, "note": req.note or ""}
+    await db.shipments.update_one(
+        {"id": req.shipment_id},
+        {
+            "$set": {
+                "trip_status": "ENDED",
+                "trip_ended_at": now,
+                "trip_active_seconds": active_secs,
+                "is_active": False,
+                "status": "DELIVERED",
+                "trip_resumed_at": None,
+            },
+            "$push": {"trip_events": event},
+        },
+    )
+    doc.update({
+        "trip_status": "ENDED", "trip_ended_at": now, "trip_active_seconds": active_secs,
+        "is_active": False, "status": "DELIVERED", "trip_resumed_at": None,
+    })
+    doc.setdefault("trip_events", []).append(event)
+    doc.pop("_id", None)
+    return doc
 
 
 # ---------------------------------------------------------------------------

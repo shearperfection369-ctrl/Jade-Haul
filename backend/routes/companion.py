@@ -349,7 +349,7 @@ def make_router(db, current_user, utcnow_iso, emergent_llm_key: str, jade_system
                         await db.driver_alerts.delete_one({"_id": o["_id"]})
             except Exception as e:  # noqa: BLE001
                 log.warning("alert sim tick failed: %s", e)
-            await asyncio.sleep(random.randint(180, 300))
+            await asyncio.sleep(random.randint(300, 480))  # 5-8 min between ambient alerts
 
     try:
         asyncio.get_event_loop().create_task(_ambient_alerts())
