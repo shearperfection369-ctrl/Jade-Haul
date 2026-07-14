@@ -1141,7 +1141,7 @@ _onboarding_router = _make_onboarding_router(db=db, current_user=current_user, u
 api.include_router(_onboarding_router)
 _companion_router = _make_companion_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso, emergent_llm_key=EMERGENT_LLM_KEY, jade_system_prompt=JADE_SYSTEM_PROMPT)
 api.include_router(_companion_router)
-_simulation_router = _make_simulation_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso, jwt_secret=JWT_SECRET, jwt_alg=JWT_ALG, make_token=make_token)
+_simulation_router = _make_simulation_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso, jwt_secret=JWT_SECRET, jwt_alg=JWT_ALG, make_token=make_token, emergent_llm_key=EMERGENT_LLM_KEY)
 api.include_router(_simulation_router)
 
 

@@ -15,6 +15,7 @@ import JadeCompanion from "@/components/JadeCompanion";
 import JadeAmbientGlow from "@/components/JadeAmbientGlow";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import SimulationHUD from "@/components/SimulationHUD";
+import SimRecap from "@/components/SimRecap";
 
 const driverNav = [
   { to: "/driver", icon: LayoutDashboard, label: "Command", testid: "nav-driver-dashboard" },
@@ -148,6 +149,7 @@ export default function AppShell() {
       <JadeCompanion />
       <JadeAmbientGlow />
       <SimulationHUD />
+      <SimRecap />
     </div>
   );
 }

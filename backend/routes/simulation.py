@@ -91,7 +91,7 @@ def _position_at(mi: float) -> dict:
     return ROUTE[-1].copy()
 
 
-def make_router(db, current_user, utcnow_iso, jwt_secret: str, jwt_alg: str, make_token):
+def make_router(db, current_user, utcnow_iso, jwt_secret: str, jwt_alg: str, make_token, emergent_llm_key: str = ""):
     router = APIRouter()
 
     # Import workflow template so we can pre-seed all 10 steps up-front.
@@ -351,5 +351,114 @@ def make_router(db, current_user, utcnow_iso, jwt_secret: str, jwt_alg: str, mak
             {"$set": {"status": "stopped", "stopped_at": utcnow_iso()}},
         )
         return {"stopped": r.modified_count}
+
+    @router.get("/simulation/recap")
+    async def get_recap(user: dict = Depends(current_user)):
+        """Aggregate stats + Claude-drafted debrief for the driver's latest sim run."""
+        sim = await db.simulation_state.find_one({"email": user["email"]}, sort=[("started_at", -1)])
+        if not sim:
+            raise HTTPException(404, "No simulation for this driver")
+
+        events = await db.cabin_events.find({"driver_email": user["email"]}).to_list(length=500)
+        alerts = await db.driver_alerts.find({"driver_email": user["email"]}).to_list(length=200)
+        coaching = await db.coaching_sessions.find({"driver_email": user["email"]}).to_list(length=100)
+        workflow = await db.driver_workflow.find({"driver_email": user["email"]}).to_list(length=50)
+
+        events_by_type = {}
+        events_by_severity = {1: 0, 2: 0, 3: 0, 4: 0, 5: 0}
+        for e in events:
+            events_by_type[e["event_type"]] = events_by_type.get(e["event_type"], 0) + 1
+            events_by_severity[e.get("severity", 2)] = events_by_severity.get(e.get("severity", 2), 0) + 1
+
+        started = sim.get("started_at")
+        finished = sim.get("finished_at") or sim.get("stopped_at") or utcnow_iso()
+        try:
+            t0 = datetime.fromisoformat(started.replace("Z", "+00:00"))
+            t1 = datetime.fromisoformat(finished.replace("Z", "+00:00"))
+            elapsed_seconds = max(1, (t1 - t0).total_seconds())
+        except Exception:
+            elapsed_seconds = 60
+
+        # HOS efficiency: (sim miles / (sim miles + est detention miles)) rough model
+        # Since sim doesn't model detention explicitly, we approximate:
+        # events lost 2 min each · alerts >warning lost 3 min each
+        lost_min = 2 * sum(events_by_severity[s] for s in (3, 4, 5)) + 3 * sum(1 for a in alerts if a.get("severity") in ("warning", "critical"))
+        # sim total_mi represents "worked" time. We estimate HOS = drive time / (drive + lost)
+        drive_min = max(30, (sim.get("total_mi", TOTAL_MI) / 60) * 60)  # ~1 hr per 60 mi
+        hos_efficiency = round(100 * drive_min / (drive_min + lost_min), 1)
+
+        stats = {
+            "driver": {"name": sim.get("name"), "email": user["email"]},
+            "route": {"origin": "Fort Worth, TX", "destination": "Phoenix, AZ",
+                      "miles": round(sim.get("miles", 0)), "total_mi": sim.get("total_mi", TOTAL_MI)},
+            "status": sim.get("status"),
+            "elapsed_seconds": round(elapsed_seconds),
+            "events": {
+                "total": len(events),
+                "by_type": events_by_type,
+                "by_severity": events_by_severity,
+                "flagged": sum(1 for e in events if e.get("status") == "flagged_for_review"),
+            },
+            "alerts": {
+                "total": len(alerts),
+                "acknowledged": sum(1 for a in alerts if a.get("ack")),
+                "critical": sum(1 for a in alerts if a.get("severity") == "critical"),
+                "warning": sum(1 for a in alerts if a.get("severity") == "warning"),
+            },
+            "coaching": {
+                "sessions_created": len(coaching),
+                "completed": sum(1 for c in coaching if c.get("status") == "completed"),
+            },
+            "workflow": {
+                "completed": sum(1 for w in workflow if w.get("status") == "completed"),
+                "total": len(workflow),
+            },
+            "hos_efficiency": hos_efficiency,
+        }
+
+        # Claude debrief
+        debrief = None
+        if emergent_llm_key:
+            try:
+                from emergentintegrations.llm.chat import LlmChat, UserMessage  # type: ignore
+                system = (
+                    "You are JADE, the in-cab AI copilot. Write a 4-part post-load debrief for the driver, "
+                    "warm and human, respectful never lecturing. Keep it under 200 words. Sections (with markdown "
+                    "headers): ## Route summary, ## What went well, ## What to sharpen next haul, ## JADE's send-off. "
+                    "Use their first name once in the send-off. Reference specific numbers from the stats."
+                )
+                first = (sim.get("name") or "Driver").split()[0]
+                summary = (
+                    f"Driver: {first}\n"
+                    f"Route: Fort Worth → Phoenix ({stats['route']['miles']} mi / {stats['route']['total_mi']} mi, status: {stats['status']})\n"
+                    f"Cabin events: {stats['events']['total']} total, {stats['events']['flagged']} flagged, by type: {events_by_type}\n"
+                    f"Alerts: {stats['alerts']['total']} total ({stats['alerts']['critical']} critical, {stats['alerts']['warning']} warning), {stats['alerts']['acknowledged']} acknowledged\n"
+                    f"Coaching sessions triggered: {stats['coaching']['sessions_created']}\n"
+                    f"Workflow: {stats['workflow']['completed']}/{stats['workflow']['total']} steps complete\n"
+                    f"HOS efficiency: {hos_efficiency}%\n\n"
+                    "Compose the debrief now."
+                )
+                chat = LlmChat(
+                    api_key=emergent_llm_key,
+                    session_id=f"recap-{sim['id']}",
+                    system_message=system,
+                ).with_model("anthropic", "claude-sonnet-4-5-20250929")
+                result = await chat.send_message(UserMessage(text=summary))
+                debrief = result if isinstance(result, str) else (getattr(result, "text", None) or str(result))
+                debrief = (debrief or "").strip()
+            except Exception as e:  # noqa: BLE001
+                log.warning("recap debrief failed: %s", e)
+
+        if not debrief:
+            first = (sim.get("name") or "Driver").split()[0]
+            debrief = (
+                f"## Route summary\nFort Worth → Phoenix · {stats['route']['miles']} of {stats['route']['total_mi']} miles.\n\n"
+                f"## What went well\n{stats['workflow']['completed']}/{stats['workflow']['total']} workflow steps closed. "
+                f"HOS efficiency held at {hos_efficiency}%.\n\n"
+                f"## What to sharpen next haul\n{stats['events']['flagged']} flagged cabin events — worth reviewing at the yard.\n\n"
+                f"## JADE's send-off\nSolid haul, {first}. Rest up — the next one is on the board."
+            )
+
+        return {"stats": stats, "debrief": debrief}
 
     return router
