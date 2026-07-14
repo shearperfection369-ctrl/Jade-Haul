@@ -8,8 +8,8 @@ import { Label } from "@/components/ui/label";
 import { Tabs, TabsList, TabsTrigger, TabsContent } from "@/components/ui/tabs";
 import { useAuth } from "@/context/AuthContext";
 import { toast } from "sonner";
-import { Truck, Briefcase, Fingerprint, Shield, Scan, UserPlus } from "lucide-react";
-import { detectFace, findBestMatch, listEnrollments, loadModels } from "@/lib/faceAuth";
+import { Truck, Briefcase, Fingerprint, Shield, Scan, UserPlus, Play } from "lucide-react";
+import { detectFace, findBestMatch, listEnrollments, loadModels, areModelsReady, MATCH_THRESHOLD, FAST_MATCH_THRESHOLD } from "@/lib/faceAuth";
 
 export default function Login() {
   const { user, login } = useAuth();
@@ -20,6 +20,14 @@ export default function Login() {
   const [email, setEmail] = useState("driver@jadeos.com");
   const [password, setPassword] = useState("jade123");
   const [faceStatus, setFaceStatus] = useState("");
+  const [scanConfidence, setScanConfidence] = useState(0);
+  const [simLaunching, setSimLaunching] = useState(false);
+
+  // Preload face-api models the moment this page mounts so the first click
+  // on "Sign in with Face" is instant. Failsafe — App.js also preloads.
+  React.useEffect(() => {
+    if (!areModelsReady()) loadModels().catch(() => {});
+  }, []);
 
   if (user) return <Navigate to={user.role === "broker" ? "/broker" : "/driver"} replace />;
 
@@ -42,7 +50,8 @@ export default function Login() {
     }
   };
 
-  // Real face-match login against any enrolled descriptor in this browser.
+  // Real face-match login — bulletproof version.
+  // Preloaded models · 8s search window · 180ms polling · live confidence · auto-retry.
   const triggerFaceLogin = async () => {
     if (!hasEnrollments) {
       toast.error("No face is enrolled on this device. Sign up first.");
@@ -53,7 +62,9 @@ export default function Login() {
       toast.error("Enable the camera first.");
       return;
     }
-    setFaceStatus("Loading face engine…");
+
+    setFaceStatus(areModelsReady() ? "Warming up…" : "Loading face engine…");
+    setScanConfidence(0);
     try {
       await loadModels();
     } catch {
@@ -62,36 +73,53 @@ export default function Login() {
       return;
     }
 
-    setFaceStatus("Looking for you…");
     setScanning(true);
-    // Try for ~5 seconds (every ~350ms) to find a match.
-    let matched = null;
-    const t0 = Date.now();
-    while (Date.now() - t0 < 5000 && !matched) {
-      // eslint-disable-next-line no-await-in-loop
-      const det = await detectFace(video);
-      if (det?.descriptor) {
-        const m = findBestMatch(det.descriptor);
-        if (m) matched = m;
+    const runScanPass = async (durationMs) => {
+      let bestSoFar = null;
+      const t0 = Date.now();
+      while (Date.now() - t0 < durationMs) {
+        // eslint-disable-next-line no-await-in-loop
+        const det = await detectFace(video);
+        if (det?.descriptor) {
+          const m = findBestMatch(det.descriptor);
+          if (m) {
+            const conf = Math.max(0, Math.min(1, 1 - m.distance / MATCH_THRESHOLD));
+            setScanConfidence(conf);
+            setFaceStatus(`Matching ${m.email} · ${Math.round(conf * 100)}%`);
+            if (!bestSoFar || m.distance < bestSoFar.distance) bestSoFar = m;
+            // Fast-accept if we get a very confident hit.
+            if (m.distance <= FAST_MATCH_THRESHOLD) return bestSoFar;
+          } else {
+            setFaceStatus("Face detected — looking for match…");
+          }
+        } else {
+          setFaceStatus("Center your face in the ring…");
+          setScanConfidence(0);
+        }
+        // eslint-disable-next-line no-await-in-loop
+        await new Promise((r) => setTimeout(r, 180));
       }
-      // eslint-disable-next-line no-await-in-loop
-      await new Promise((r) => setTimeout(r, 350));
+      return bestSoFar;
+    };
+
+    // First pass: 5s
+    let matched = await runScanPass(5000);
+    // If we saw *something* but not a fast accept, try one quick retry (3s).
+    if (!matched || matched.distance > MATCH_THRESHOLD) {
+      setFaceStatus("Retrying — hold still…");
+      const retry = await runScanPass(3000);
+      if (retry && (!matched || retry.distance < matched.distance)) matched = retry;
     }
     setScanning(false);
 
-    if (!matched) {
+    if (!matched || matched.distance > MATCH_THRESHOLD) {
       setFaceStatus("");
-      toast.error("Face not recognized. Try again or use your password.");
+      setScanConfidence(0);
+      toast.error("Face not recognized. Try again in better light — or use your password.");
       return;
     }
 
-    // Match found — pull the saved password challenge by asking the user.
-    // Since we never store passwords, face-match is the auth factor:
-    // we issue a token by hitting /auth/login with a per-device "face token"
-    // shortcut. Simpler approach: prompt the user to confirm their email
-    // and re-use stored credentials for demo users; otherwise ask for password
-    // once and remember a session token via /auth/login.
-    setFaceStatus(`Matched ${matched.email} · ${Math.round((1 - matched.distance) * 100)}% confidence`);
+    setFaceStatus(`Verified · ${matched.email} · ${Math.round((1 - matched.distance) * 100)}% confidence`);
 
     // Demo-account fast path
     if (matched.email === "driver@jadeos.com" || matched.email === "broker@jadeos.com") {
@@ -106,9 +134,7 @@ export default function Login() {
       }
     }
 
-    // For custom-signed-up users, ask them to confirm their password once
-    // on this device. (A future iteration can swap this for a device-bound
-    // refresh token issued at enrollment.)
+    // Custom-signed-up users: prompt password once on this device.
     const pw = window.prompt(
       `Face matched ${matched.email}. Confirm your password to finish sign-in (one time on this device):`
     );
@@ -136,6 +162,22 @@ export default function Login() {
     }
   };
 
+  const runSampleSimulation = async () => {
+    if (simLaunching) return;
+    setSimLaunching(true);
+    try {
+      const { data } = await (await import("@/lib/api")).api.post("/simulation/start", { new_trucker: true });
+      // Persist the returned token, then refresh the user so AuthContext picks it up.
+      localStorage.setItem("jadeos.token", data.token);
+      toast.success(`Sample trucker "${data.user.name}" launched. Watch the top HUD.`);
+      // Full page navigation to guarantee AuthProvider re-bootstraps with the new token.
+      window.location.href = "/driver";
+    } catch (err) {
+      toast.error(err.response?.data?.detail || "Could not start simulation.");
+      setSimLaunching(false);
+    }
+  };
+
   return (
     <div className="min-h-screen w-full grid grid-cols-1 lg:grid-cols-[1.1fr_1fr] overflow-hidden">
       {/* Left — branding / orb */}
@@ -160,6 +202,23 @@ export default function Login() {
           <div className="mono text-xs text-muted-foreground mt-6 tracking-widest" data-testid="holo-status">
             {scanning ? "BIOMETRIC SCAN · ACTIVE" : (faceStatus || (hasEnrollments ? `${enrollments.length} FACE${enrollments.length > 1 ? "S" : ""} ON FILE · TAP SCAN-IN` : "AWAITING BIOMETRIC · ENROLL TO BEGIN"))}
           </div>
+          {scanning && (
+            <div className="mt-3 w-64 max-w-full" data-testid="scan-confidence">
+              <div className="h-1.5 rounded-full bg-muted overflow-hidden">
+                <div
+                  className="h-full bg-primary transition-all duration-150"
+                  style={{
+                    width: `${Math.round(scanConfidence * 100)}%`,
+                    boxShadow: "0 0 12px hsl(var(--primary))",
+                  }}
+                />
+              </div>
+              <div className="flex justify-between mono text-[9px] tracking-widest text-muted-foreground mt-1 uppercase">
+                <span>{Math.round(scanConfidence * 100)}%</span>
+                <span>{faceStatus.split("·")[1]?.trim() || "Verifying"}</span>
+              </div>
+            </div>
+          )}
           {hasEnrollments && (
             <Button
               type="button"
@@ -237,6 +296,24 @@ export default function Login() {
           >
             <UserPlus className="w-3.5 h-3.5" /> Create account & enroll face
           </Link>
+
+          {/* Sample trucker simulation — creates a fresh account + kicks off scripted route */}
+          <button
+            type="button"
+            onClick={runSampleSimulation}
+            disabled={simLaunching}
+            className="w-full jade-panel border border-primary/40 hover:border-primary/70 hover:bg-primary/5 transition-all rounded-xl p-3 flex items-center gap-3 group"
+            data-testid="sample-sim-btn"
+          >
+            <div className="relative w-9 h-9 rounded-full border border-primary/40 flex items-center justify-center shrink-0">
+              <div className="absolute inset-0 rounded-full scan-ring border border-primary/50" />
+              <Play className="w-4 h-4 text-primary ml-0.5" />
+            </div>
+            <div className="text-left flex-1 min-w-0">
+              <div className="text-sm font-semibold">{simLaunching ? "Launching sample trucker…" : "Try a sample trucker simulation"}</div>
+              <div className="mono text-[10px] text-muted-foreground tracking-widest uppercase">Fresh account · Fort Worth → Phoenix · live events</div>
+            </div>
+          </button>
 
           <div className="mono text-[10px] text-muted-foreground leading-relaxed">
             Demo accounts · driver@jadeos.com / jade123 · broker@jadeos.com / jade123

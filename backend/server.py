@@ -1130,6 +1130,7 @@ from routes.tts import router as _tts_router  # noqa: E402
 from routes.safety import make_router as _make_safety_router  # noqa: E402
 from routes.onboarding import make_router as _make_onboarding_router  # noqa: E402
 from routes.companion import make_router as _make_companion_router  # noqa: E402
+from routes.simulation import make_router as _make_simulation_router  # noqa: E402
 
 _phase3_router = _make_phase3_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso)
 api.include_router(_phase3_router)
@@ -1140,6 +1141,8 @@ _onboarding_router = _make_onboarding_router(db=db, current_user=current_user, u
 api.include_router(_onboarding_router)
 _companion_router = _make_companion_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso, emergent_llm_key=EMERGENT_LLM_KEY, jade_system_prompt=JADE_SYSTEM_PROMPT)
 api.include_router(_companion_router)
+_simulation_router = _make_simulation_router(db=db, current_user=current_user, utcnow_iso=utcnow_iso, jwt_secret=JWT_SECRET, jwt_alg=JWT_ALG, make_token=make_token)
+api.include_router(_simulation_router)
 
 
 # ---------------------------------------------------------------------------

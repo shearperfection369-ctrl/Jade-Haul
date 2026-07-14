@@ -16,7 +16,7 @@ import { averageDescriptors, currentEAR, saveEnrollment } from "@/lib/faceAuth";
 const EAR_OPEN = 0.27;
 const EAR_CLOSED = 0.21;
 // Capture configuration.
-const SAMPLES_NEEDED = 3;
+const SAMPLES_NEEDED = 5;
 
 export default function Signup() {
   const { user, signupAndLogin } = useAuth();

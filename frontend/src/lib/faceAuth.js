@@ -6,8 +6,11 @@ import * as faceapi from "@vladmandic/face-api";
 
 const MODEL_URL = "/models";
 const STORAGE_KEY = "jadehaul.face.enrollments.v1";
-// 0.6 is library default. Lower = stricter. 0.5 is a safer match cut-off.
-export const MATCH_THRESHOLD = 0.5;
+// A more forgiving match threshold. Lower = stricter. 0.55 gives good balance
+// between security and reliability across lighting/angle variance.
+export const MATCH_THRESHOLD = 0.55;
+// Instant-accept threshold — if we get a face this good, log in immediately.
+export const FAST_MATCH_THRESHOLD = 0.42;
 
 let modelsReady = false;
 let modelsLoading = null;
@@ -24,6 +27,17 @@ export async function loadModels() {
     modelsReady = true;
   })();
   return modelsLoading;
+}
+
+/** Kick off model loading in the background as soon as the app mounts.
+ *  Idempotent — safe to call from multiple places. */
+export function preloadFaceModels() {
+  if (modelsReady || modelsLoading) return;
+  loadModels().catch(() => { /* swallow — retry on demand */ });
+}
+
+export function areModelsReady() {
+  return modelsReady;
 }
 
 // Detect a single face + descriptor from a video element.

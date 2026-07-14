@@ -41,6 +41,7 @@
     }
 
     [data-theme="midnight"] {
+        /* alias — kept for old localStorage values */
         --background: 220 30% 4%;
         --foreground: 0 0% 100%;
         --card: 220 25% 8%;
@@ -57,56 +58,358 @@
         --glow-soft: 0 0 12px hsl(200 100% 55% / 0.25);
     }
 
-    [data-theme="sunset"] {
-        --background: 12 25% 5%;
-        --foreground: 30 100% 96%;
-        --card: 12 20% 9%;
-        --primary: 18 100% 58%;
-        --primary-foreground: 0 0% 5%;
-        --secondary: 12 15% 12%;
-        --muted: 12 15% 15%;
-        --muted-foreground: 18 20% 70%;
-        --accent: 18 100% 58%;
-        --border: 18 25% 18%;
-        --input: 18 25% 18%;
-        --ring: 18 100% 58%;
-        --glow: 0 0 24px hsl(18 100% 58% / 0.45);
-        --glow-soft: 0 0 12px hsl(18 100% 58% / 0.25);
+    /* ================= Calafia · Orisei — gold on deep navy ================= */
+    [data-theme="calafia"] {
+        --background: 222 45% 6%;
+        --foreground: 45 30% 96%;
+        --card: 222 38% 10%;
+        --card-foreground: 45 30% 96%;
+        --popover: 222 38% 10%;
+        --popover-foreground: 45 30% 96%;
+        --primary: 45 85% 58%;
+        --primary-foreground: 222 45% 8%;
+        --secondary: 222 30% 14%;
+        --secondary-foreground: 45 30% 96%;
+        --muted: 222 26% 16%;
+        --muted-foreground: 45 15% 70%;
+        --accent: 45 85% 58%;
+        --accent-foreground: 222 45% 8%;
+        --border: 222 30% 20%;
+        --input: 222 30% 20%;
+        --ring: 45 85% 58%;
+        --glow: 0 0 24px hsl(45 85% 58% / 0.5);
+        --glow-soft: 0 0 12px hsl(45 85% 58% / 0.25);
     }
 
-    [data-theme="storm"] {
-        --background: 210 18% 7%;
+    /* ================= HUD Cyan — electric cyan on navy ================= */
+    [data-theme="hud-cyan"] {
+        --background: 215 40% 6%;
+        --foreground: 190 30% 96%;
+        --card: 215 35% 10%;
+        --card-foreground: 190 30% 96%;
+        --popover: 215 35% 10%;
+        --popover-foreground: 190 30% 96%;
+        --primary: 188 90% 55%;
+        --primary-foreground: 215 45% 8%;
+        --secondary: 215 30% 14%;
+        --secondary-foreground: 190 30% 96%;
+        --muted: 215 25% 17%;
+        --muted-foreground: 190 20% 70%;
+        --accent: 188 90% 55%;
+        --accent-foreground: 215 45% 8%;
+        --border: 215 25% 20%;
+        --input: 215 25% 20%;
+        --ring: 188 90% 55%;
+        --glow: 0 0 24px hsl(188 90% 55% / 0.5);
+        --glow-soft: 0 0 12px hsl(188 90% 55% / 0.25);
+    }
+
+    /* ================= Forest Calm — evergreen ================= */
+    [data-theme="forest-calm"] {
+        --background: 165 20% 6%;
+        --foreground: 150 20% 95%;
+        --card: 165 18% 10%;
+        --card-foreground: 150 20% 95%;
+        --popover: 165 18% 10%;
+        --popover-foreground: 150 20% 95%;
+        --primary: 155 50% 48%;
+        --primary-foreground: 165 25% 6%;
+        --secondary: 165 15% 14%;
+        --secondary-foreground: 150 20% 95%;
+        --muted: 165 13% 17%;
+        --muted-foreground: 150 12% 70%;
+        --accent: 155 50% 48%;
+        --accent-foreground: 165 25% 6%;
+        --border: 165 15% 20%;
+        --input: 165 15% 20%;
+        --ring: 155 50% 48%;
+        --glow: 0 0 24px hsl(155 50% 48% / 0.45);
+        --glow-soft: 0 0 12px hsl(155 50% 48% / 0.22);
+    }
+
+    /* ================= Sunset Warm — amber on maroon ================= */
+    [data-theme="sunset-warm"] {
+        --background: 8 30% 6%;
+        --foreground: 35 40% 96%;
+        --card: 8 25% 10%;
+        --card-foreground: 35 40% 96%;
+        --popover: 8 25% 10%;
+        --popover-foreground: 35 40% 96%;
+        --primary: 28 92% 58%;
+        --primary-foreground: 8 30% 8%;
+        --secondary: 8 20% 14%;
+        --secondary-foreground: 35 40% 96%;
+        --muted: 8 18% 17%;
+        --muted-foreground: 30 25% 72%;
+        --accent: 28 92% 58%;
+        --accent-foreground: 8 30% 8%;
+        --border: 8 22% 20%;
+        --input: 8 22% 20%;
+        --ring: 28 92% 58%;
+        --glow: 0 0 24px hsl(28 92% 58% / 0.5);
+        --glow-soft: 0 0 12px hsl(28 92% 58% / 0.25);
+    }
+
+    /* ================= Arctic — ice blue high focus ================= */
+    [data-theme="arctic"] {
+        --background: 215 25% 8%;
+        --foreground: 210 40% 96%;
+        --card: 215 22% 12%;
+        --card-foreground: 210 40% 96%;
+        --popover: 215 22% 12%;
+        --popover-foreground: 210 40% 96%;
+        --primary: 205 75% 72%;
+        --primary-foreground: 215 30% 10%;
+        --secondary: 215 18% 16%;
+        --secondary-foreground: 210 40% 96%;
+        --muted: 215 16% 19%;
+        --muted-foreground: 210 22% 75%;
+        --accent: 205 75% 72%;
+        --accent-foreground: 215 30% 10%;
+        --border: 215 18% 22%;
+        --input: 215 18% 22%;
+        --ring: 205 75% 72%;
+        --glow: 0 0 24px hsl(205 75% 72% / 0.5);
+        --glow-soft: 0 0 12px hsl(205 75% 72% / 0.25);
+    }
+
+    /* ================= Lavender — soft violet ================= */
+    [data-theme="lavender"] {
+        --background: 258 22% 7%;
+        --foreground: 270 30% 96%;
+        --card: 258 20% 11%;
+        --card-foreground: 270 30% 96%;
+        --popover: 258 20% 11%;
+        --popover-foreground: 270 30% 96%;
+        --primary: 268 55% 74%;
+        --primary-foreground: 258 30% 10%;
+        --secondary: 258 16% 15%;
+        --secondary-foreground: 270 30% 96%;
+        --muted: 258 14% 18%;
+        --muted-foreground: 270 18% 74%;
+        --accent: 268 55% 74%;
+        --accent-foreground: 258 30% 10%;
+        --border: 258 16% 21%;
+        --input: 258 16% 21%;
+        --ring: 268 55% 74%;
+        --glow: 0 0 24px hsl(268 55% 74% / 0.45);
+        --glow-soft: 0 0 12px hsl(268 55% 74% / 0.22);
+    }
+
+    /* ================= Mocha — espresso & cream ================= */
+    [data-theme="mocha"] {
+        --background: 25 18% 9%;
+        --foreground: 30 30% 94%;
+        --card: 25 15% 13%;
+        --card-foreground: 30 30% 94%;
+        --popover: 25 15% 13%;
+        --popover-foreground: 30 30% 94%;
+        --primary: 32 40% 70%;
+        --primary-foreground: 25 25% 10%;
+        --secondary: 25 12% 17%;
+        --secondary-foreground: 30 30% 94%;
+        --muted: 25 11% 20%;
+        --muted-foreground: 30 15% 72%;
+        --accent: 32 40% 70%;
+        --accent-foreground: 25 25% 10%;
+        --border: 25 12% 23%;
+        --input: 25 12% 23%;
+        --ring: 32 40% 70%;
+        --glow: 0 0 24px hsl(32 40% 70% / 0.45);
+        --glow-soft: 0 0 12px hsl(32 40% 70% / 0.22);
+    }
+
+    /* ================= Solar Light — LIGHT MODE ================= */
+    [data-theme="solar-light"] {
+        --background: 42 40% 97%;
+        --foreground: 220 25% 12%;
+        --card: 42 40% 100%;
+        --card-foreground: 220 25% 12%;
+        --popover: 42 40% 100%;
+        --popover-foreground: 220 25% 12%;
+        --primary: 32 92% 48%;
+        --primary-foreground: 42 40% 100%;
+        --secondary: 42 25% 92%;
+        --secondary-foreground: 220 25% 12%;
+        --muted: 42 20% 90%;
+        --muted-foreground: 220 12% 40%;
+        --accent: 32 92% 48%;
+        --accent-foreground: 42 40% 100%;
+        --border: 42 20% 82%;
+        --input: 42 20% 82%;
+        --ring: 32 92% 48%;
+        --destructive: 0 72% 50%;
+        --destructive-foreground: 42 40% 100%;
+        --glow: 0 0 24px hsl(32 92% 48% / 0.35);
+        --glow-soft: 0 0 12px hsl(32 92% 48% / 0.18);
+        --grain-opacity: 0.03;
+    }
+
+    /* ================= Orisei Brand — heraldic azure ================= */
+    [data-theme="orisei-brand"] {
+        --background: 218 45% 7%;
         --foreground: 210 30% 96%;
-        --card: 210 15% 11%;
-        --primary: 210 90% 80%;
-        --primary-foreground: 210 50% 10%;
-        --secondary: 210 12% 15%;
-        --muted: 210 12% 18%;
-        --muted-foreground: 210 15% 70%;
-        --accent: 210 90% 80%;
-        --border: 210 15% 22%;
-        --input: 210 15% 22%;
-        --ring: 210 90% 80%;
-        --glow: 0 0 24px hsl(210 90% 80% / 0.45);
-        --glow-soft: 0 0 12px hsl(210 90% 80% / 0.25);
+        --card: 218 38% 11%;
+        --card-foreground: 210 30% 96%;
+        --popover: 218 38% 11%;
+        --popover-foreground: 210 30% 96%;
+        --primary: 215 88% 55%;
+        --primary-foreground: 218 45% 8%;
+        --secondary: 218 32% 15%;
+        --secondary-foreground: 210 30% 96%;
+        --muted: 218 28% 18%;
+        --muted-foreground: 210 18% 72%;
+        --accent: 215 88% 55%;
+        --accent-foreground: 218 45% 8%;
+        --border: 218 30% 22%;
+        --input: 218 30% 22%;
+        --ring: 215 88% 55%;
+        --glow: 0 0 24px hsl(215 88% 55% / 0.5);
+        --glow-soft: 0 0 12px hsl(215 88% 55% / 0.25);
     }
 
-    [data-theme="aurora"] {
-        --background: 260 35% 5%;
-        --foreground: 170 30% 96%;
-        --card: 260 25% 9%;
-        --primary: 170 100% 55%;
-        --primary-foreground: 260 50% 8%;
-        --secondary: 260 20% 13%;
-        --muted: 260 20% 16%;
-        --muted-foreground: 270 15% 72%;
-        --accent: 170 100% 55%;
-        --border: 260 20% 20%;
-        --input: 260 20% 20%;
-        --ring: 170 100% 55%;
-        --glow: 0 0 24px hsl(170 100% 55% / 0.45);
-        --glow-soft: 0 0 12px hsl(170 100% 55% / 0.25);
+    /* ================= Neon Tokyo — magenta-cyan synthwave ================= */
+    [data-theme="neon-tokyo"] {
+        --background: 285 30% 6%;
+        --foreground: 320 30% 96%;
+        --card: 285 25% 10%;
+        --card-foreground: 320 30% 96%;
+        --popover: 285 25% 10%;
+        --popover-foreground: 320 30% 96%;
+        --primary: 320 90% 62%;
+        --primary-foreground: 285 30% 8%;
+        --secondary: 285 22% 14%;
+        --secondary-foreground: 320 30% 96%;
+        --muted: 285 20% 17%;
+        --muted-foreground: 320 22% 74%;
+        --accent: 190 90% 55%;
+        --accent-foreground: 285 30% 8%;
+        --border: 285 22% 22%;
+        --input: 285 22% 22%;
+        --ring: 320 90% 62%;
+        --glow: 0 0 24px hsl(320 90% 62% / 0.55);
+        --glow-soft: 0 0 12px hsl(320 90% 62% / 0.28);
     }
+
+    /* ================= Matrix Green — phosphor terminal ================= */
+    [data-theme="matrix-green"] {
+        --background: 120 20% 3%;
+        --foreground: 120 30% 92%;
+        --card: 120 18% 7%;
+        --card-foreground: 120 30% 92%;
+        --popover: 120 18% 7%;
+        --popover-foreground: 120 30% 92%;
+        --primary: 125 82% 48%;
+        --primary-foreground: 120 25% 4%;
+        --secondary: 120 15% 11%;
+        --secondary-foreground: 120 30% 92%;
+        --muted: 120 13% 14%;
+        --muted-foreground: 120 15% 65%;
+        --accent: 125 82% 48%;
+        --accent-foreground: 120 25% 4%;
+        --border: 120 15% 17%;
+        --input: 120 15% 17%;
+        --ring: 125 82% 48%;
+        --glow: 0 0 24px hsl(125 82% 48% / 0.55);
+        --glow-soft: 0 0 12px hsl(125 82% 48% / 0.28);
+    }
+
+    /* ================= Amber CRT — vintage monitor ================= */
+    [data-theme="amber-crt"] {
+        --background: 20 25% 5%;
+        --foreground: 35 40% 94%;
+        --card: 20 22% 9%;
+        --card-foreground: 35 40% 94%;
+        --popover: 20 22% 9%;
+        --popover-foreground: 35 40% 94%;
+        --primary: 32 92% 55%;
+        --primary-foreground: 20 30% 6%;
+        --secondary: 20 18% 13%;
+        --secondary-foreground: 35 40% 94%;
+        --muted: 20 16% 16%;
+        --muted-foreground: 32 25% 72%;
+        --accent: 32 92% 55%;
+        --accent-foreground: 20 30% 6%;
+        --border: 20 18% 19%;
+        --input: 20 18% 19%;
+        --ring: 32 92% 55%;
+        --glow: 0 0 24px hsl(32 92% 55% / 0.5);
+        --glow-soft: 0 0 12px hsl(32 92% 55% / 0.25);
+    }
+
+    /* ================= Midnight Steel — maritime ================= */
+    [data-theme="midnight-steel"] {
+        --background: 215 40% 7%;
+        --foreground: 210 20% 95%;
+        --card: 215 32% 11%;
+        --card-foreground: 210 20% 95%;
+        --popover: 215 32% 11%;
+        --popover-foreground: 210 20% 95%;
+        --primary: 210 32% 66%;
+        --primary-foreground: 215 40% 8%;
+        --secondary: 215 25% 15%;
+        --secondary-foreground: 210 20% 95%;
+        --muted: 215 22% 18%;
+        --muted-foreground: 210 15% 74%;
+        --accent: 210 32% 66%;
+        --accent-foreground: 215 40% 8%;
+        --border: 215 22% 22%;
+        --input: 215 22% 22%;
+        --ring: 210 32% 66%;
+        --glow: 0 0 24px hsl(210 32% 66% / 0.45);
+        --glow-soft: 0 0 12px hsl(210 32% 66% / 0.22);
+    }
+
+    /* ================= Rose Quartz — muted pink ================= */
+    [data-theme="rose-quartz"] {
+        --background: 0 8% 8%;
+        --foreground: 340 20% 95%;
+        --card: 0 8% 12%;
+        --card-foreground: 340 20% 95%;
+        --popover: 0 8% 12%;
+        --popover-foreground: 340 20% 95%;
+        --primary: 340 42% 66%;
+        --primary-foreground: 0 12% 10%;
+        --secondary: 0 6% 16%;
+        --secondary-foreground: 340 20% 95%;
+        --muted: 0 5% 19%;
+        --muted-foreground: 340 15% 74%;
+        --accent: 340 42% 66%;
+        --accent-foreground: 0 12% 10%;
+        --border: 0 6% 23%;
+        --input: 0 6% 23%;
+        --ring: 340 42% 66%;
+        --glow: 0 0 24px hsl(340 42% 66% / 0.45);
+        --glow-soft: 0 0 12px hsl(340 42% 66% / 0.22);
+    }
+
+    /* ================= Carbon Fiber — slate stealth ================= */
+    [data-theme="carbon-fiber"] {
+        --background: 218 10% 7%;
+        --foreground: 210 15% 94%;
+        --card: 218 9% 11%;
+        --card-foreground: 210 15% 94%;
+        --popover: 218 9% 11%;
+        --popover-foreground: 210 15% 94%;
+        --primary: 210 14% 62%;
+        --primary-foreground: 218 12% 9%;
+        --secondary: 218 8% 15%;
+        --secondary-foreground: 210 15% 94%;
+        --muted: 218 7% 18%;
+        --muted-foreground: 210 10% 72%;
+        --accent: 210 14% 62%;
+        --accent-foreground: 218 12% 9%;
+        --border: 218 8% 22%;
+        --input: 218 8% 22%;
+        --ring: 210 14% 62%;
+        --glow: 0 0 24px hsl(210 14% 62% / 0.4);
+        --glow-soft: 0 0 12px hsl(210 14% 62% / 0.2);
+    }
+
+    /* ================= Legacy aliases (backwards compat) ================= */
+    [data-theme="sunset"] { }
+    [data-theme="storm"] { }
+    [data-theme="aurora"] { }
 
     * {
         @apply border-border;

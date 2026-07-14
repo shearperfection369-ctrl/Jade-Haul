@@ -10,6 +10,10 @@ import Login from "@/pages/Login";
 import Signup from "@/pages/Signup";
 import OnboardingWizard from "@/pages/OnboardingWizard";
 import WorkflowPage from "@/pages/WorkflowPage";
+import { preloadFaceModels } from "@/lib/faceAuth";
+
+// Warm up the face-api models the moment the app mounts so login is instant.
+preloadFaceModels();
 import AppShell from "@/components/layout/AppShell";
 import DriverDashboard from "@/pages/DriverDashboard";
 import GpsPage from "@/pages/GpsPage";

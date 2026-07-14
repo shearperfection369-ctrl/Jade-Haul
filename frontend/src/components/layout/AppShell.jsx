@@ -13,6 +13,8 @@ import JadeMark from "@/components/JadeMark";
 import ErrorBoundary from "@/components/ErrorBoundary";
 import JadeCompanion from "@/components/JadeCompanion";
 import JadeAmbientGlow from "@/components/JadeAmbientGlow";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
+import SimulationHUD from "@/components/SimulationHUD";
 
 const driverNav = [
   { to: "/driver", icon: LayoutDashboard, label: "Command", testid: "nav-driver-dashboard" },
@@ -58,6 +60,9 @@ export default function AppShell() {
       <aside className="w-64 shrink-0 jade-glass m-3 mr-0 flex flex-col" data-testid="app-sidebar">
         <div className="px-5 py-5 border-b border-border/60">
           <JadeMark size="sm" subtitle={user?.role === "broker" ? "Broker Desk · MPLS" : "Driver Cockpit · MPLS"} />
+          <div className="mt-3">
+            <ThemeSwitcher />
+          </div>
         </div>
 
         <nav className="flex-1 overflow-y-auto px-2 py-3 space-y-1">
@@ -142,6 +147,7 @@ export default function AppShell() {
       </main>
       <JadeCompanion />
       <JadeAmbientGlow />
+      <SimulationHUD />
     </div>
   );
 }
